@@ -6,7 +6,7 @@ import inquirer, {
 } from 'inquirer';
 import { isEmpty, repeat } from 'lodash';
 import terminalLink from 'terminal-link';
-import { TargetBranchChoice } from '../options/ConfigOptions';
+import { TargetBranchChoice, DirectoryChoice } from '../options/ConfigOptions';
 import {
   stripPullNumber,
   getFirstLine,
@@ -180,6 +180,30 @@ export async function promptForTargetBranches({
         isMultipleChoice,
       })
     : selectedBranches;
+}
+
+export async function promptForDirectories({
+  choices,
+  isMultipleChoice,
+}: {
+  choices: DirectoryChoice[];
+  isMultipleChoice: boolean;
+}): Promise<string[]> {
+  for (;;) {
+    const res = await prompt<string | string[]>({
+      loop: false,
+      pageSize: 15,
+      choices,
+      message: 'Select directory',
+      type: isMultipleChoice ? 'checkbox' : 'list',
+    });
+
+    const selectedDirectories = Array.isArray(res) ? res : [res];
+
+    if (!isEmpty(selectedDirectories)) {
+      return selectedDirectories;
+    }
+  }
 }
 
 export function confirmPrompt(message: string) {

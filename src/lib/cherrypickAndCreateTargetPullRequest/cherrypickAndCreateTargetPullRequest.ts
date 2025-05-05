@@ -19,6 +19,7 @@ import { getPullRequestBody } from '../github/v3/getPullRequest/getPullRequestBo
 import { getTitle } from '../github/v3/getPullRequest/getTitle';
 import { validateTargetBranch } from '../github/v4/validateTargetBranch';
 import { consoleLog } from '../logger';
+import { Target } from '../runSequentially';
 import { sequentially } from '../sequentially';
 import { Commit } from '../sourceCommit/parseSourceCommit';
 import { autoMergeNowOrLater } from './autoMergeNowOrLater';
@@ -32,19 +33,24 @@ import { waitForCherrypick } from './waitForCherrypick';
 export async function cherrypickAndCreateTargetPullRequest({
   options,
   commits,
-  targetBranch,
+  target,
 }: {
   options: ValidConfigOptions;
   commits: Commit[];
-  targetBranch: string;
+  target: Target;
 }): Promise<{ url: string; number: number; didUpdate: boolean }> {
+  const { branch: targetBranch } = target;
+
   const backportBranch = getBackportBranchName({
     options,
     targetBranch,
     commits,
   });
+
+  // TODO: backportBranch must start with a valid character
+
   const repoForkOwner = getRepoForkOwner(options);
-  consoleLog(`\n${chalk.bold(`Backporting to ${targetBranch}:`)}`);
+  consoleLog(`\n${chalk.bold(`Backporting to ${JSON.stringify(target)}:`)}`);
 
   await validateTargetBranch({ ...options, branchName: targetBranch });
   await createBackportBranch({
@@ -59,7 +65,7 @@ export async function cherrypickAndCreateTargetPullRequest({
   );
 
   const cherrypickResults = await sequentially(commitsFlattened, (commit) =>
-    waitForCherrypick(options, commit, targetBranch),
+    waitForCherrypick(options, commit, target),
   );
   const hasAnyCommitWithConflicts = cherrypickResults.some(
     (r) => r.hasCommitsWithConflicts,

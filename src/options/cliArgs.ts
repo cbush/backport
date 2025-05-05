@@ -408,6 +408,30 @@ export function getOptionsFromCliArgs(processArgs: readonly string[]) {
       string: true,
     })
 
+    .option('targetDirectory', {
+      description: 'Directory (or directories) to backport to',
+      alias: ['directory', 'd'],
+      type: 'array',
+      string: true,
+    })
+
+    .option('targetDirectoryChoice', {
+      description: 'Possible directories to backport to',
+      type: 'array',
+      string: true,
+    })
+
+    .option('sourceDirectory', {
+      description: 'Subdirectory to backport from, in directory backport mode',
+      type: 'string',
+    })
+
+    .option('backportTargetMode', {
+      description: 'Specify backport destination type. Default: branch',
+      type: 'string',
+      choices: ['branch', 'directory'],
+    })
+
     .option('targetPRLabel', {
       description: 'Add labels to the target (backport) PR',
       alias: ['label', 'l'],

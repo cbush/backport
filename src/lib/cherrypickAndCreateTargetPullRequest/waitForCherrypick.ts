@@ -7,22 +7,25 @@ import { CommitAuthor, getCommitAuthor } from '../author';
 import { spawnPromise } from '../child-process-promisified';
 import { getRepoPath } from '../env';
 import {
+  CherrypicklikeFunction,
   cherrypick,
   commitChanges,
   ConflictingFiles,
   getConflictingFiles,
   getUnstagedFiles,
   gitAddAll,
+  patchApply,
 } from '../git';
 import { getFirstLine } from '../github/commitFormatters';
 import { consoleLog, logger } from '../logger';
 import { confirmPrompt } from '../prompts';
+import { Target } from '../runSequentially';
 import { getCommitsWithoutBackports } from './getCommitsWithoutBackports';
 
 export async function waitForCherrypick(
   options: ValidConfigOptions,
   commit: Commit,
-  targetBranch: string,
+  target: Target,
 ): Promise<{ hasCommitsWithConflicts: boolean }> {
   const spinnerText = `Cherry-picking: ${chalk.greenBright(
     getFirstLine(commit.sourceCommit.message),
@@ -34,8 +37,10 @@ export async function waitForCherrypick(
     options,
     commit,
     commitAuthor,
-    targetBranch,
+    target,
     cherrypickSpinner,
+    cherrypick:
+      options.backportTargetMode === 'branch' ? cherrypick : patchApply,
   });
 
   // At this point conflict are resolved (or committed if `commitConflicts: true`) and files are staged
@@ -58,17 +63,21 @@ async function cherrypickAndHandleConflicts({
   options,
   commit,
   commitAuthor,
-  targetBranch,
+  target,
   cherrypickSpinner,
+  cherrypick,
 }: {
   options: ValidConfigOptions;
   commit: Commit;
   commitAuthor: CommitAuthor;
-  targetBranch: string;
+  target: Target;
   cherrypickSpinner: Ora;
+  cherrypick: CherrypicklikeFunction;
 }): Promise<{ hasCommitsWithConflicts: boolean }> {
+  const { branch: targetBranch } = target;
+
   const mergedTargetPullRequest = commit.targetPullRequestStates.find(
-    (pr) => pr.state === 'MERGED' && pr.branch === targetBranch,
+    (pr) => pr.state === 'MERGED' && pr.branch === target.branch,
   );
 
   let conflictingFiles: ConflictingFiles;
@@ -81,6 +90,7 @@ async function cherrypickAndHandleConflicts({
       sha: commit.sourceCommit.sha,
       mergedTargetPullRequest,
       commitAuthor,
+      target,
     }));
 
     // no conflicts encountered

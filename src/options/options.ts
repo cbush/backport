@@ -8,7 +8,11 @@ import {
 } from '../lib/github/v4/getOptionsFromGithub/getOptionsFromGithub';
 import { getRepoOwnerAndNameFromGitRemotes } from '../lib/github/v4/getRepoOwnerAndNameFromGitRemotes';
 import { setAccessToken } from '../lib/logger';
-import { ConfigFileOptions, TargetBranchChoiceOrString } from './ConfigOptions';
+import {
+  ConfigFileOptions,
+  TargetBranchChoiceOrString,
+  DirectoryChoiceOrString,
+} from './ConfigOptions';
 import { OptionsFromCliArgs } from './cliArgs';
 import {
   getOptionsFromConfigFiles,
@@ -47,6 +51,7 @@ export const defaultConfigOptions = {
   maxNumber: 10,
   multipleBranches: true,
   multipleCommits: false,
+  multipleDirectories: true,
   noVerify: true,
   publishStatusCommentOnAbort: false,
   publishStatusCommentOnFailure: false,
@@ -54,12 +59,17 @@ export const defaultConfigOptions = {
   resetAuthor: false,
   reviewers: [] as Array<string>,
   signoff: false,
+  sourceDirectory: undefined as string | undefined,
   sourcePRLabels: [] as string[],
   noUnmergedBackportsHelp: false,
   targetBranchChoices: [] as TargetBranchChoiceOrString[],
   targetBranches: [] as string[],
+  targetDirectoryChoices: [] as DirectoryChoiceOrString[],
+  targetDirectories: [] as string[],
   targetPRLabels: [] as string[],
   telemetry: true,
+
+  backportTargetMode: 'branch' as 'branch' | 'directory',
 };
 
 export async function getOptions({
@@ -171,7 +181,10 @@ function throwForRequiredOptions(
     isEmpty(options.targetBranches) &&
     isEmpty(options.targetBranchChoices) &&
     // this is primarily necessary on CI where `targetBranches` and `targetBranchChoices` and not given
-    isEmpty(options.branchLabelMapping)
+    isEmpty(options.branchLabelMapping) &&
+    // Directory mode
+    isEmpty(options.targetDirectoryChoices) &&
+    isEmpty(options.targetDirectory)
   ) {
     throw new BackportError(
       `Please specify a target branch: "--branch 6.1".\n\nRead more: ${PROJECT_CONFIG_DOCS_LINK}`,
@@ -214,6 +227,7 @@ function throwForRequiredOptions(
 type OptionsFromConfigAndCli = ReturnType<
   typeof getMergedOptionsFromConfigAndCli
 >;
+
 function getMergedOptionsFromConfigAndCli({
   optionsFromConfigFiles,
   optionsFromCliArgs,

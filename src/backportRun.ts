@@ -1,16 +1,20 @@
+import assert from 'node:assert';
 import chalk from 'chalk';
 import apm, { Transaction } from 'elastic-apm-node';
+import { Logger } from 'winston';
 import { BackportError } from './lib/BackportError';
 import { disableApm } from './lib/apm';
 import { getLogfilePath } from './lib/env';
 import { getCommits } from './lib/getCommits';
+import { getSourceDirectory } from './lib/getSourceDirectory';
 import { getTargetBranches } from './lib/getTargetBranches';
+import { getTargetDirectories } from './lib/getTargetDirectories';
 import { createStatusComment } from './lib/github/v3/createStatusComment';
 import { GithubV4Exception } from './lib/github/v4/apiRequestV4';
 import { consoleLog, initLogger } from './lib/logger';
 import { ora } from './lib/ora';
 import { registerHandlebarsHelpers } from './lib/registerHandlebarsHelpers';
-import { runSequentially, Result } from './lib/runSequentially';
+import { runSequentially, Result, Target } from './lib/runSequentially';
 import { setupRepo } from './lib/setupRepo';
 import { Commit } from './lib/sourceCommit/parseSourceCommit';
 import { ConfigFileOptions } from './options/ConfigOptions';
@@ -97,7 +101,7 @@ export async function backportRun({
 
   try {
     options = await getOptions({ optionsFromCliArgs, optionsFromModule });
-
+    assert(options.backportTargetMode === 'directory');
     if (!options.telemetry) {
       disableApm();
     }
@@ -122,24 +126,49 @@ export async function backportRun({
       return { status: 'success', commits, results: [] } as BackportResponse;
     }
 
-    const targetBranchesSpan = apm.startSpan('Get target branches');
-    const targetBranches = await getTargetBranches(options, commits);
-    targetBranchesSpan?.setLabel(
-      'target-branches-count',
-      targetBranches.length,
-    );
-    targetBranchesSpan?.end();
-    logger.info('Target branches', targetBranches);
+    const sourceBranch = ''; // TODO
+
+    const { targetBranches } = await getBackportToBranchesInput({
+      options,
+      logger,
+      commits,
+    });
+
+    const { targetDirectories, targetBranch, sourceDirectory } =
+      await getBackportToDirectoriesInput({
+        options,
+        commits,
+        logger,
+        sourceBranch,
+      });
 
     const setupRepoSpan = apm.startSpan('Setup repository');
     await setupRepo(options);
     setupRepoSpan?.end();
 
     const backportCommitsSpan = apm.startSpan('Backport commits');
+
+    assert(targetBranches !== undefined || targetBranch !== undefined);
+
+    const targets: Target[] = [];
+
+    if (targetBranches) {
+      targets.push(...targetBranches.map((branch) => ({ branch })));
+    }
+
+    if (targetDirectories) {
+      assert(targetBranch);
+      targets.push({
+        branch: targetBranch,
+        directories: targetDirectories,
+        sourceDirectory,
+      });
+    }
+
     const results = await runSequentially({
       options,
       commits,
-      targetBranches,
+      targets,
     });
     logger.info('Results', results);
     backportCommitsSpan?.end();
@@ -250,3 +279,83 @@ process.on('SIGINT', () => {
     apm.flush(() => process.exit());
   }
 });
+
+async function getBackportToDirectoriesInput({
+  options,
+  logger,
+  commits,
+  sourceBranch,
+}: {
+  options: ValidConfigOptions;
+  logger: Logger;
+  commits: Commit[];
+  sourceBranch: string;
+}): Promise<
+  | {
+      targetDirectories: string[];
+      sourceDirectory: string;
+      targetBranch: string;
+    }
+  | Record<string, undefined>
+> {
+  const { backportTargetMode } = options;
+  if (backportTargetMode !== 'directory') {
+    return {};
+  }
+
+  // Which directory (TODO: on which branch?) has the backportable changes?
+  const sourceDirectorySpan = apm.startSpan('Get source directory');
+  const sourceDirectory = await getSourceDirectory({ options, sourceBranch });
+  sourceDirectorySpan?.end();
+  logger.info('Source directory', sourceDirectory);
+
+  // Backport onto which branch?
+  const targetBranchSpan = apm.startSpan('Get target branch');
+  const targetBranch = (
+    await getTargetBranches({ ...options, multipleBranches: false }, commits)
+  )[0];
+  targetBranchSpan?.end();
+  logger.info('Target branch', targetBranch);
+
+  // Which directory on target branch should have the changes applied?
+  const targetDirectoriesSpan = apm.startSpan('Get target directories');
+  const targetDirectories = await getTargetDirectories({
+    options,
+    sourceDirectory,
+    targetBranch,
+    sourceBranch,
+  });
+  targetDirectoriesSpan?.setLabel(
+    'target-directories-count',
+    targetDirectories.length,
+  );
+  targetDirectoriesSpan?.end();
+  logger.info('Target directories', targetDirectories);
+  return { targetDirectories, targetBranch, sourceDirectory };
+}
+
+async function getBackportToBranchesInput({
+  options,
+  commits,
+  logger,
+}: {
+  options: ValidConfigOptions;
+  commits: Commit[];
+  logger: Logger;
+}): Promise<
+  | {
+      targetBranches: string[];
+    }
+  | Record<string, undefined>
+> {
+  const { backportTargetMode } = options;
+  if (backportTargetMode !== 'branch') {
+    return {};
+  }
+  const targetBranchesSpan = apm.startSpan('Get target branches');
+  const targetBranches = await getTargetBranches(options, commits);
+  targetBranchesSpan?.setLabel('target-branches-count', targetBranches.length);
+  targetBranchesSpan?.end();
+  logger.info('Target branches', targetBranches);
+  return { targetBranches };
+}

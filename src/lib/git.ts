@@ -12,7 +12,9 @@ import {
 } from './child-process-promisified';
 import { getRepoPath } from './env';
 import { getShortSha } from './github/commitFormatters';
-import { logger } from './logger';
+import { consoleLog, logger } from './logger';
+import { Target } from './runSequentially';
+import { sequentially } from './sequentially';
 import { TargetPullRequest } from './sourceCommit/getPullRequestStates';
 import { Commit } from './sourceCommit/parseSourceCommit';
 
@@ -281,6 +283,7 @@ export async function getShasInMergeCommit(
     throw e;
   }
 }
+export type CherrypicklikeFunction = typeof cherrypick;
 
 export async function cherrypick({
   options,
@@ -292,6 +295,7 @@ export async function cherrypick({
   sha: string;
   mergedTargetPullRequest?: TargetPullRequest;
   commitAuthor: CommitAuthor;
+  target: Target;
 }): Promise<{
   conflictingFiles: { absolute: string; relative: string }[];
   unstagedFiles: string[];
@@ -361,6 +365,106 @@ export async function cherrypick({
     throw e;
   }
 }
+
+export const patchApply: CherrypicklikeFunction = async ({
+  options,
+  sha,
+  target,
+}) => {
+  try {
+    const cwd = getRepoPath(options);
+
+    // Generate patch
+    const { stdout: patch } = await spawnPromise(
+      'git',
+      [`diff`, `${sha}^`, sha],
+      cwd,
+    );
+
+    consoleLog(`patch: ${patch}`);
+
+    if (patch === '') {
+      throw new BackportError('empty patch error TODO');
+    }
+
+    consoleLog(`source?: ${target.sourceDirectory}`);
+    // TODO: check leading slash on sourceDirectory
+    const strippedPathPatch = patch.replaceAll(
+      new RegExp(`^([+-]{3} [ab])/${target.sourceDirectory}/`, 'gm'),
+      (_, start) => `${start}/`,
+    );
+
+    consoleLog(`stripped: ${strippedPathPatch}`);
+
+    const results = await sequentially(
+      target.directories!,
+      async (targetDirectory) => {
+        try {
+          // Apply patch - should be ok to keep applying and building up merge
+          // conflicts without needing to resolve between every apply
+          await spawnPromise(
+            'git',
+            [
+              'apply', // apply patch
+              '--3way', // trigger merge conflicts if needed
+              `--directory=${targetDirectory}`, // apply within target directory
+              '-', // read stdin
+            ],
+            cwd,
+            false,
+            strippedPathPatch,
+          );
+          return true;
+        } catch (e) {
+          if (!(e instanceof SpawnError)) {
+            throw e;
+          }
+
+          consoleLog(`error: ${e}`);
+          const isApplyError =
+            e.context.cmdArgs.includes('apply') && e.context.code > 0;
+          consoleLog(`isApplyError: ${isApplyError}`);
+          if (isApplyError) {
+            return false;
+          }
+        }
+      },
+    );
+
+    if (results.find((v) => v === undefined || v === false) === undefined) {
+      consoleLog(`no errors?`);
+      return {
+        conflictingFiles: [],
+        unstagedFiles: [],
+        needsResolving: false,
+      };
+    }
+
+    consoleLog(`conflicts!!`);
+    const [conflictingFiles, unstagedFiles] = await Promise.all([
+      getConflictingFiles(options),
+      getUnstagedFiles(options),
+    ]);
+
+    return {
+      conflictingFiles,
+      unstagedFiles,
+      needsResolving: true,
+    };
+  } catch (e) {
+    const isSpawnError = e instanceof SpawnError;
+    if (isSpawnError) {
+      if (e.message.includes(`bad object ${sha}`)) {
+        throw new BackportError(
+          `Patch-apply failed because commit "${sha}" was not found`,
+        );
+      }
+    }
+
+    // re-throw error if it didn't match the handled cases above
+    throw e;
+  }
+};
 
 export async function gitAddAll({ options }: { options: ValidConfigOptions }) {
   const cwd = getRepoPath(options);

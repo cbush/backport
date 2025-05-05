@@ -6,6 +6,12 @@ export interface TargetBranchChoice {
 }
 export type TargetBranchChoiceOrString = string | TargetBranchChoice;
 
+export interface DirectoryChoice {
+  name: string; // path
+  checked?: boolean;
+}
+export type DirectoryChoiceOrString = string | DirectoryChoice;
+
 type AutoFixConflictsHandler = ({
   files,
   directory,
@@ -28,6 +34,7 @@ type Options = Partial<{
   autoMergeMethod: string;
   backportBinary: string;
   backportBranchName: string;
+  backportTargetMode: 'branch' | 'directory';
   cherrypickRef: boolean;
   commitConflicts: boolean;
   commitPaths: string[];
@@ -74,6 +81,8 @@ type Options = Partial<{
   sourcePRLabels: string[];
   targetBranchChoices: TargetBranchChoiceOrString[];
   targetBranches: string[];
+  targetDirectoryChoices: DirectoryChoiceOrString[];
+  targetDirectory: string;
   targetPRLabels: string[];
 }>;
 
@@ -86,6 +95,9 @@ export type ConfigFileOptions = Options &
 
     // only allowed in project config. Not allowed in CI mode
     branchLabelMapping: Record<string, string>;
+
+    // only allowed in project config. Not allowed in CI mode
+    directoryLabelMapping: Record<string, string>;
 
     /**
      * @deprecated Replaced by `repoOwner` and `repoName`

@@ -32,11 +32,11 @@ export async function getTargetBranches(
   }
 
   const sourceBranch = getSourceBranchFromCommits(commits);
-  const targetBranchChoices = getTargetBranchChoices(
+  const targetBranchChoices = getTargetBranchChoices({
     options,
     suggestedTargetBranches,
     sourceBranch,
-  );
+  });
 
   // render prmompt for selecting target branches
   return promptForTargetBranches({
@@ -45,15 +45,19 @@ export async function getTargetBranches(
   });
 }
 
-export function getTargetBranchChoices(
-  options: ValidConfigOptions,
-  suggestedTargetBranches: string[],
-  sourceBranch: string,
-) {
-  // exclude sourceBranch from targetBranchChoices
+export function getTargetBranchChoices({
+  options,
+  suggestedTargetBranches,
+}: {
+  options: ValidConfigOptions;
+  suggestedTargetBranches: string[];
+  sourceBranch: string;
+}) {
   const targetBranchesChoices = getTargetBranchChoicesAsObject(
     options.targetBranchChoices,
-  ).filter((choice) => choice.name !== sourceBranch);
+  );
+  // exclude sourceBranch from targetBranchChoices
+  //.filter((choice) => choice.name !== sourceBranch);
 
   if (isEmpty(targetBranchesChoices)) {
     throw new BackportError('Missing target branch choices');

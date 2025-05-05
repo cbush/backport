@@ -7,23 +7,33 @@ import { logger, consoleLog } from './logger';
 import { sequentially } from './sequentially';
 import { Commit } from './sourceCommit/parseSourceCommit';
 
-export type SuccessResult = {
+// Target is either a branch (for branch mode) or a branch + directories list
+// for directory mode.
+export type Target = {
+  branch: string;
+  directories?: string[];
+  sourceDirectory?: string;
+};
+
+export type ResultType = {
+  status: 'success' | 'handled-error' | 'unhandled-error';
+  target: Target;
+};
+
+export type SuccessResult = ResultType & {
   status: 'success';
   didUpdate: boolean;
-  targetBranch: string;
   pullRequestUrl: string;
   pullRequestNumber: number;
 };
 
-export type HandledErrorResult = {
+export type HandledErrorResult = ResultType & {
   status: 'handled-error';
-  targetBranch: string;
   error: BackportError;
 };
 
-export type UnhandledErrorResult = {
+export type UnhandledErrorResult = ResultType & {
   status: 'unhandled-error';
-  targetBranch: string;
   error: Error;
 };
 
@@ -32,79 +42,93 @@ export type Result = SuccessResult | HandledErrorResult | UnhandledErrorResult;
 export async function runSequentially({
   options,
   commits,
-  targetBranches,
+  targets,
 }: {
   options: ValidConfigOptions;
   commits: Commit[];
-  targetBranches: string[];
+  targets: Target[];
 }): Promise<Result[]> {
   logger.verbose('Backport options', options);
 
-  const results = [] as Result[];
+  return await sequentially(targets, async (target) => {
+    return await doBackport({
+      options,
+      commits,
+      target,
+    });
+  });
+}
 
-  await sequentially(targetBranches, async (targetBranch) => {
-    logger.info(`Backporting ${JSON.stringify(commits)} to ${targetBranch}`);
-    const span = apm.startSpan('Cherrypick commits to target branch');
-    try {
-      const { number, url, didUpdate } =
-        await cherrypickAndCreateTargetPullRequest({
-          options,
-          commits,
-          targetBranch,
-        });
+async function doBackport({
+  options,
+  target,
+  commits,
+}: {
+  options: ValidConfigOptions;
+  target: Target;
+  commits: Commit[];
+}): Promise<Result> {
+  logger.info(
+    `Backporting ${JSON.stringify(commits)} to ${JSON.stringify(target)}`,
+  );
+  const span = apm.startSpan('Cherrypick commits to target');
 
-      results.push({
-        targetBranch,
-        status: 'success',
-        didUpdate,
-        pullRequestUrl: url,
-        pullRequestNumber: number,
+  try {
+    const { number, url, didUpdate } =
+      await cherrypickAndCreateTargetPullRequest({
+        options,
+        commits,
+        target,
       });
-      span?.setOutcome('success');
-      span?.end();
-    } catch (e) {
-      span?.setOutcome('failure');
-      span?.setLabel('error_message', (e as Error).message);
-      span?.end();
-      apm.captureError(e as Error);
 
-      const isHandledError = e instanceof BackportError;
-      if (isHandledError) {
-        results.push({
-          targetBranch,
-          status: 'handled-error',
-          error: e,
-        });
-      } else if (e instanceof Error) {
-        results.push({
-          targetBranch,
-          status: 'unhandled-error',
-          error: e,
-        });
-      } else {
-        throw e;
-      }
+    span?.setOutcome('success');
+    span?.end();
+    return {
+      target,
+      status: 'success',
+      didUpdate,
+      pullRequestUrl: url,
+      pullRequestNumber: number,
+    };
+  } catch (e) {
+    span?.setOutcome('failure');
+    span?.setLabel('error_message', (e as Error).message);
+    span?.end();
+    apm.captureError(e as Error);
 
-      logger.error('runSequentially failed', e);
+    const isHandledError = e instanceof BackportError;
 
-      if (isHandledError) {
-        // don't output anything for `code: invalid-branch-exception`.
-        // Outputting is already handled
-        if (e.errorContext.code !== 'invalid-branch-exception') {
-          consoleLog(e.message);
-        }
+    logger.error('runSequentially failed', e);
 
-        return;
-      }
-
+    if (!isHandledError) {
       consoleLog(
         `An unhandled error occurred while backporting commit. Please see the logs for details: ${getLogfilePath(
           { logFilePath: options.logFilePath, logLevel: 'info' },
         )}`,
       );
     }
-  });
 
-  // return the results for consumers to programatically read
-  return results;
+    if (isHandledError) {
+      // don't output anything for `code: invalid-branch-exception`.
+      // Outputting is already handled
+      if (e.errorContext.code !== 'invalid-branch-exception') {
+        consoleLog(e.message);
+      }
+
+      return {
+        target,
+        status: 'handled-error',
+        error: e,
+      };
+    }
+
+    if (e instanceof Error) {
+      return {
+        target,
+        status: 'unhandled-error',
+        error: e,
+      };
+    }
+    throw e;
+  }
 }

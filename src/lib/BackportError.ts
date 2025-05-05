@@ -19,7 +19,8 @@ type ErrorContext =
     }
   | {
       code: 'no-branches-exception' | 'abort-conflict-resolution-exception';
-    };
+    }
+  | { code: 'no-directories-exception' };
 
 function getMessage(errorContext: ErrorContext): string {
   switch (errorContext.code) {
@@ -29,6 +30,8 @@ function getMessage(errorContext: ErrorContext): string {
       )}`;
     case 'no-branches-exception':
       return 'There are no branches to backport to. Aborting.';
+    case 'no-directories-exception':
+      return 'There are no directories to backport to. Aborting.';
     case 'abort-conflict-resolution-exception':
       return 'Conflict resolution was aborted by the user';
     case 'invalid-branch-exception':

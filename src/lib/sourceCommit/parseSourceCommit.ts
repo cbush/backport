@@ -32,6 +32,7 @@ export interface Commit {
   };
   sourceBranch: string;
   suggestedTargetBranches: string[];
+  // suggestedTargetDirectories: string[]; // TODO: Feature
   targetPullRequestStates: TargetPullRequest[];
 }
 

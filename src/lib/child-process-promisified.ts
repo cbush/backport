@@ -37,6 +37,7 @@ export async function spawnPromise(
   cmdArgs: ReadonlyArray<string>,
   cwd: string,
   isInteractive = false,
+  stdin: string | undefined = undefined,
 ): Promise<SpawnPromiseResponse> {
   const spawnSpan = startSpawnSpan(cmd, cmdArgs);
   const fullCmd = getFullCmd(cmd, cmdArgs);
@@ -52,7 +53,11 @@ export async function spawnPromise(
     });
     let stderr = '';
     let stdout = '';
-
+    if (stdin !== undefined) {
+      const subprocessStdin = subprocess.stdin!;
+      subprocessStdin.write(stdin);
+      subprocessStdin.end();
+    }
     subprocess.stdout?.on('data', (data: string) => {
       stdout += data;
     });

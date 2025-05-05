@@ -142,7 +142,7 @@ ${manualBackportCommand}${questionsAndLinkToBackport}${packageVersionSection}`;
 
         return [
           '✅',
-          result.targetBranch,
+          result.target.branch,
           isRepoPrivate ? result.pullRequestUrl : prShield,
         ];
       }
@@ -162,7 +162,7 @@ ${manualBackportCommand}${questionsAndLinkToBackport}${packageVersionSection}`;
         const unmergedBackportsSection =
           unmergedBackports.length > 0
             ? `<br><br>You might need to backport the following PRs to ${
-                result.targetBranch
+                result.target.branch
               }:<br>${unmergedBackports.join('<br>')}`
             : undefined;
 
@@ -171,7 +171,7 @@ ${manualBackportCommand}${questionsAndLinkToBackport}${packageVersionSection}`;
 
         return [
           '❌',
-          result.targetBranch,
+          result.target.branch,
           unmergedBackportsSection && !noUnmergedBackportsHelp
             ? `**${backportFailedLabel}**${unmergedBackportsSection}`
             : backportFailedLabel,
@@ -182,7 +182,7 @@ ${manualBackportCommand}${questionsAndLinkToBackport}${packageVersionSection}`;
         result.status === 'handled-error'
           ? result.error.message
           : 'An unhandled error occurred. Please see the logs for details';
-      return ['❌', result.targetBranch, message];
+      return ['❌', result.target.branch, message];
     })
     .map((line) => line.join('|'))
     .join('|\n|');
