@@ -25,6 +25,17 @@ export function getRemoteUrl(
   return `https://x-access-token:${accessToken}@${gitHostname}/${repoOwner}/${repoName}.git`;
 }
 
+export function sanitizeDirectoryPath(path: string): string {
+  return path.replace(/^\/+|\/+$/g, '');
+}
+
+export function escapeRegExp(string: string | undefined) {
+  if (!string) {
+    return '';
+  }
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export async function cloneRepo(
   { sourcePath, targetPath }: { sourcePath: string; targetPath: string },
   onProgress: (progress: number) => void,
@@ -383,25 +394,24 @@ export const patchApply: CherrypicklikeFunction = async ({
 
     consoleLog(`patch: ${patch}`);
 
-    if (patch.trim() === '' || !target.directories) {
+    if (patch.trim() === '' || !target.directories || !target.sourceDirectory) {
       throw new BackportError('Patch is empty. Nothing to apply.');
     }
 
-    consoleLog(`Generated patch:\n${patch}`);
-    consoleLog(`Source directory: ${target.sourceDirectory}`);
-    consoleLog(`Target directories: ${target.directories.join(', ')}`);
-
-    // Step 2: Apply the patch once per target directory (version)
+    // Apply the patch once per target directory (version)
     const results = await sequentially(
       target.directories!,
       async (targetDirectory) => {
+        // Remove leading and trailing slashes
+        const sanitizedTargetDirectory = sanitizeDirectoryPath(targetDirectory);
+
         // Rewrite patch paths: replace /<sourceDirectory>/ with /<targetDirectory>/ in content paths
         const versionedPatch = patch.replaceAll(
           new RegExp(
-            `^([+-]{3} [ab])(/content/.+?/)${target.sourceDirectory}/`,
+            `^([+-]{3} [ab])(/)${escapeRegExp(target.sourceDirectory)}/`,
             'gm',
           ),
-          (_, start, prefix) => `${start}${prefix}${targetDirectory}/`,
+          (_, start, slash) => `${start}${slash}${sanitizedTargetDirectory}/`,
         );
 
         // Optional: Safety check — ensure replacement happened
@@ -439,7 +449,7 @@ export const patchApply: CherrypicklikeFunction = async ({
       },
     );
 
-    // Step 3: Return conflict info if any failed
+    // Return conflict info if any failed
     const anyFailures = results.includes(false);
     if (anyFailures) {
       consoleLog('⚠️ Conflicts detected in one or more directories.');
