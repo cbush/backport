@@ -236,7 +236,7 @@ export function getOptionsFromCliArgs(processArgs: readonly string[]) {
     .option('multiple', {
       description: 'Select multiple branches/commits',
       type: 'boolean',
-      conflicts: ['multipleBranches', 'multipleCommits'],
+      conflicts: ['multipleBranches', 'multipleCommits', 'multipleDirectories'],
     })
 
     // allow picking multiple target branches
@@ -249,6 +249,13 @@ export function getOptionsFromCliArgs(processArgs: readonly string[]) {
     // allow picking multiple commits
     .option('multipleCommits', {
       description: 'Backport multiple commits',
+      type: 'boolean',
+      conflicts: ['multiple'],
+    })
+
+    // allow picking multiple directories
+    .options('multipleDirectories', {
+      description: 'Backport to multiple directories',
       type: 'boolean',
       conflicts: ['multiple'],
     })

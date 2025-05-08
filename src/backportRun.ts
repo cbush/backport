@@ -6,6 +6,7 @@ import { BackportError } from './lib/BackportError';
 import { disableApm } from './lib/apm';
 import { getLogfilePath } from './lib/env';
 import { getCommits } from './lib/getCommits';
+import { getSourceBranchFromCommits } from './lib/getSourceBranchFromCommits';
 import { getSourceDirectory } from './lib/getSourceDirectory';
 import { getTargetBranches } from './lib/getTargetBranches';
 import { getTargetDirectories } from './lib/getTargetDirectories';
@@ -126,7 +127,7 @@ export async function backportRun({
       return { status: 'success', commits, results: [] } as BackportResponse;
     }
 
-    const sourceBranch = ''; // TODO
+    const sourceBranch = getSourceBranchFromCommits(commits);
 
     const { targetBranches } = await getBackportToBranchesInput({
       options,

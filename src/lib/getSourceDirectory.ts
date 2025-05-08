@@ -1,4 +1,9 @@
 import assert from 'node:assert';
+import { isEmpty, isString } from 'lodash';
+import {
+  DirectoryChoice,
+  DirectoryChoiceOrString,
+} from '../options/ConfigOptions';
 import { ValidConfigOptions } from '../options/options';
 import { BackportError } from './BackportError';
 import { promptForDirectories } from './prompts';
@@ -19,17 +24,50 @@ export async function getSourceDirectory({
     throw new BackportError({ code: 'no-directories-exception' });
   }
 
-  const choices = [
-    {
-      name: 'content/cluster-to-cluster-sync/current', // TODO
-      checked: false,
-    },
-  ];
+  const sourceDirectoryChoices: DirectoryChoice[] = getSourceDirectoryChoices({
+    options,
+  });
 
   const result = await promptForDirectories({
-    choices,
+    choices: sourceDirectoryChoices,
     isMultipleChoice: false,
+    isTarget: false,
   });
   assert(result.length === 1);
   return result[0];
+}
+
+export function getSourceDirectoryChoices({
+  options,
+}: {
+  options: ValidConfigOptions;
+}) {
+  const sourceDirectoryChoices = getSourceDirectoryChoicesAsObject(
+    options.sourceDirectoryChoices,
+  );
+
+  if (isEmpty(sourceDirectoryChoices)) {
+    throw new BackportError('Missing source directory choices');
+  }
+
+  return sourceDirectoryChoices;
+}
+
+function getSourceDirectoryChoicesAsObject(
+  sourceDirectoryChoices?: DirectoryChoiceOrString[],
+): DirectoryChoice[] {
+  if (!sourceDirectoryChoices) {
+    return [];
+  }
+
+  return sourceDirectoryChoices.map((choice) => {
+    if (isString(choice)) {
+      return {
+        name: choice,
+        checked: false,
+      };
+    }
+
+    return choice;
+  });
 }

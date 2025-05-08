@@ -42,6 +42,7 @@ export async function getTargetDirectories({
   return promptForDirectories({
     choices: targetDirectoryChoices,
     isMultipleChoice: options.multipleDirectories,
+    isTarget: true,
   });
 }
 

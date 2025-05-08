@@ -185,16 +185,18 @@ export async function promptForTargetBranches({
 export async function promptForDirectories({
   choices,
   isMultipleChoice,
+  isTarget,
 }: {
   choices: DirectoryChoice[];
   isMultipleChoice: boolean;
+  isTarget: boolean;
 }): Promise<string[]> {
   for (;;) {
     const res = await prompt<string | string[]>({
       loop: false,
       pageSize: 15,
       choices,
-      message: 'Select directory',
+      message: isTarget ? 'Select target directory' : 'Select source directory',
       type: isMultipleChoice ? 'checkbox' : 'list',
     });
 
