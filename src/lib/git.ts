@@ -431,7 +431,6 @@ export const patchApply: CherrypicklikeFunction = async ({
             (_, start, slash) => `${start}${slash}${sanitizedTargetDirectory}/`,
           );
 
-        consoleLog(`Transformed patch:\n${versionedPatch}\n\n`);
         // Optional: Safety check — ensure replacement happened
         if (!versionedPatch.includes(`/${targetDirectory}/`)) {
           consoleLog(
