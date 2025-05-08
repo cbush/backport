@@ -33,7 +33,8 @@ export function getBackportBranchName({
   const defaultBackportBranchName = 'backport/{{targetBranch}}/{{refValues}}';
 
   const backportBranchName =
-    options.backportBranchName ?? defaultBackportBranchName;
+    (options.backportBranchName && sourcePullRequest?.title) ?? // Empty title resutls in branch name starting with "-" which causes errors
+    defaultBackportBranchName;
 
   const template = Handlebars.compile(backportBranchName);
   return template({

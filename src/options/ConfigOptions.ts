@@ -59,6 +59,7 @@ type Options = Partial<{
   multiple: boolean;
   multipleBranches: boolean;
   multipleCommits: boolean;
+  multipleDirectories: boolean;
   noVerify: boolean;
   prDescription: string;
   prFilter: string;

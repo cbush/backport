@@ -60,6 +60,7 @@ export const defaultConfigOptions = {
   reviewers: [] as Array<string>,
   signoff: false,
   sourceDirectory: undefined as string | undefined,
+  sourceDirectoryChoices: [] as DirectoryChoiceOrString[],
   sourcePRLabels: [] as string[],
   noUnmergedBackportsHelp: false,
   targetBranchChoices: [] as TargetBranchChoiceOrString[],

@@ -383,73 +383,81 @@ export const patchApply: CherrypicklikeFunction = async ({
 
     consoleLog(`patch: ${patch}`);
 
-    if (patch === '') {
-      throw new BackportError('empty patch error TODO');
+    if (patch.trim() === '' || !target.directories) {
+      throw new BackportError('Patch is empty. Nothing to apply.');
     }
 
-    consoleLog(`source?: ${target.sourceDirectory}`);
-    // TODO: check leading slash on sourceDirectory
-    const strippedPathPatch = patch.replaceAll(
-      new RegExp(`^([+-]{3} [ab])/${target.sourceDirectory}/`, 'gm'),
-      (_, start) => `${start}/`,
-    );
+    consoleLog(`Generated patch:\n${patch}`);
+    consoleLog(`Source directory: ${target.sourceDirectory}`);
+    consoleLog(`Target directories: ${target.directories.join(', ')}`);
 
-    consoleLog(`stripped: ${strippedPathPatch}`);
-
+    // Step 2: Apply the patch once per target directory (version)
     const results = await sequentially(
       target.directories!,
       async (targetDirectory) => {
+        // Rewrite patch paths: replace /<sourceDirectory>/ with /<targetDirectory>/ in content paths
+        const versionedPatch = patch.replaceAll(
+          new RegExp(
+            `^([+-]{3} [ab])(/content/.+?/)${target.sourceDirectory}/`,
+            'gm',
+          ),
+          (_, start, prefix) => `${start}${prefix}${targetDirectory}/`,
+        );
+
+        // Optional: Safety check — ensure replacement happened
+        if (!versionedPatch.includes(`/${targetDirectory}/`)) {
+          consoleLog(
+            `⚠️ Patch rewrite failed for ${targetDirectory}. Skipping.`,
+          );
+          return false;
+        }
+
+        consoleLog(`Applying patch for ${targetDirectory}...`);
+
         try {
-          // Apply patch - should be ok to keep applying and building up merge
-          // conflicts without needing to resolve between every apply
           await spawnPromise(
             'git',
-            [
-              'apply', // apply patch
-              '--3way', // trigger merge conflicts if needed
-              `--directory=${targetDirectory}`, // apply within target directory
-              '-', // read stdin
-            ],
+            ['apply', '--3way', '-'],
             cwd,
             false,
-            strippedPathPatch,
+            versionedPatch,
           );
+          consoleLog(`✅ Patch applied to ${targetDirectory}`);
           return true;
         } catch (e) {
-          if (!(e instanceof SpawnError)) {
-            throw e;
-          }
+          if (!(e instanceof SpawnError)) throw e;
 
-          consoleLog(`error: ${e}`);
+          consoleLog(`❌ Error applying patch to ${targetDirectory}: ${e}`);
           const isApplyError =
             e.context.cmdArgs.includes('apply') && e.context.code > 0;
-          consoleLog(`isApplyError: ${isApplyError}`);
           if (isApplyError) {
             return false;
           }
+
+          throw e;
         }
       },
     );
 
-    if (results.find((v) => v === undefined || v === false) === undefined) {
-      consoleLog(`no errors?`);
+    // Step 3: Return conflict info if any failed
+    const anyFailures = results.includes(false);
+    if (anyFailures) {
+      consoleLog('⚠️ Conflicts detected in one or more directories.');
+      const [conflictingFiles, unstagedFiles] = await Promise.all([
+        getConflictingFiles(options),
+        getUnstagedFiles(options),
+      ]);
       return {
-        conflictingFiles: [],
-        unstagedFiles: [],
-        needsResolving: false,
+        conflictingFiles,
+        unstagedFiles,
+        needsResolving: true,
       };
     }
 
-    consoleLog(`conflicts!!`);
-    const [conflictingFiles, unstagedFiles] = await Promise.all([
-      getConflictingFiles(options),
-      getUnstagedFiles(options),
-    ]);
-
     return {
-      conflictingFiles,
-      unstagedFiles,
-      needsResolving: true,
+      conflictingFiles: [],
+      unstagedFiles: [],
+      needsResolving: false,
     };
   } catch (e) {
     const isSpawnError = e instanceof SpawnError;
@@ -620,6 +628,7 @@ export async function createBackportBranch({
 
     // create tmp branch. This can be necessary when fetching to the currently selected branch
     const tmpBranchName = '__backport_tool_tmp';
+
     await spawnPromise('git', ['checkout', '-B', tmpBranchName], cwd);
 
     // fetch target branch
