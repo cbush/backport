@@ -406,13 +406,30 @@ export const patchApply: CherrypicklikeFunction = async ({
         const sanitizedTargetDirectory = sanitizeDirectoryPath(targetDirectory);
 
         // Rewrite patch paths: replace /<sourceDirectory>/ with /<targetDirectory>/ in content paths
-        const versionedPatch = patch.replaceAll(
-          new RegExp(
-            `^([+-]{3} [ab])(/)${escapeRegExp(target.sourceDirectory)}/`,
-            'gm',
-          ),
-          (_, start, slash) => `${start}${slash}${sanitizedTargetDirectory}/`,
-        );
+        const versionedPatch = patch
+          .replaceAll(
+            new RegExp(
+              `^diff --git a/${target.sourceDirectory}/(.*) b/${target.sourceDirectory}/(.*)`,
+              'gm',
+            ),
+            (_, fileA, fileB) =>
+              `diff --git a/${sanitizedTargetDirectory}/${fileA} b/${sanitizedTargetDirectory}/${fileB}`,
+          )
+          .replaceAll(
+            new RegExp(
+              `^rename (from|to) ${target.sourceDirectory}/(.*)$`,
+              'gm',
+            ),
+            (_, fromTo, filename) =>
+              `rename ${fromTo} ${sanitizedTargetDirectory}/${filename}`,
+          )
+          .replaceAll(
+            new RegExp(
+              `^([+-]{3} [ab])(/)${escapeRegExp(target.sourceDirectory)}/`,
+              'gm',
+            ),
+            (_, start, slash) => `${start}${slash}${sanitizedTargetDirectory}/`,
+          );
 
         // Optional: Safety check — ensure replacement happened
         if (!versionedPatch.includes(`/${targetDirectory}/`)) {

@@ -102,7 +102,7 @@ export async function backportRun({
 
   try {
     options = await getOptions({ optionsFromCliArgs, optionsFromModule });
-    assert(options.backportTargetMode === 'directory');
+
     if (!options.telemetry) {
       disableApm();
     }
