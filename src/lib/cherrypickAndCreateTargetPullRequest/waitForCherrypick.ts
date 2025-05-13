@@ -187,7 +187,11 @@ async function cherrypickAndHandleConflicts({
    */
 
   if (options.editor) {
-    await spawnPromise(options.editor, [repoPath], options.cwd, true);
+    const [editor, ...editorOpts] = options.editor
+      .split(' ')
+      .map((segment) => segment.trim())
+      .filter((segment) => segment !== '');
+    await spawnPromise(editor, [...editorOpts, repoPath], options.cwd, true);
   }
 
   // list files with conflict markers + unstaged files and require user to resolve them
