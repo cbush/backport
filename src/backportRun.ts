@@ -6,7 +6,6 @@ import { BackportError } from './lib/BackportError';
 import { disableApm } from './lib/apm';
 import { getLogfilePath } from './lib/env';
 import { getCommits } from './lib/getCommits';
-import { getSourceBranchFromCommits } from './lib/getSourceBranchFromCommits';
 import { getSourceDirectory } from './lib/getSourceDirectory';
 import { getTargetBranches } from './lib/getTargetBranches';
 import { getTargetDirectories } from './lib/getTargetDirectories';
@@ -98,6 +97,7 @@ export async function backportRun({
 
   let options: ValidConfigOptions | null = null;
   let commits: Commit[] = [];
+
   const spinner = ora(interactive).start('Initializing...');
 
   try {
@@ -117,8 +117,21 @@ export async function backportRun({
 
     consoleLog(getActiveOptionsFormatted(options));
 
+    const { targetDirectories, targetBranch, sourceDirectory } =
+      await getBackportToDirectoriesInput({
+        options,
+        logger,
+        sourceBranch: options.sourceBranch,
+      });
+
     const commitsSpan = apm.startSpan(`Get commits`);
-    commits = await getCommits(options);
+    const commitPaths = sourceDirectory
+      ? [...options.commitPaths, sourceDirectory] // in directory mode, only find commits that touch source directory
+      : options.commitPaths;
+    commits = await getCommits({
+      ...options,
+      commitPaths,
+    });
     commitsSpan?.setLabel('commit_count', commits.length);
     commitsSpan?.end();
     logger.info('Commits', commits);
@@ -127,21 +140,11 @@ export async function backportRun({
       return { status: 'success', commits, results: [] } as BackportResponse;
     }
 
-    const sourceBranch = getSourceBranchFromCommits(commits);
-
     const { targetBranches } = await getBackportToBranchesInput({
       options,
       logger,
       commits,
     });
-
-    const { targetDirectories, targetBranch, sourceDirectory } =
-      await getBackportToDirectoriesInput({
-        options,
-        commits,
-        logger,
-        sourceBranch,
-      });
 
     const setupRepoSpan = apm.startSpan('Setup repository');
     await setupRepo(options);
@@ -284,12 +287,10 @@ process.on('SIGINT', () => {
 async function getBackportToDirectoriesInput({
   options,
   logger,
-  commits,
   sourceBranch,
 }: {
   options: ValidConfigOptions;
   logger: Logger;
-  commits: Commit[];
   sourceBranch: string;
 }): Promise<
   | {
@@ -313,7 +314,7 @@ async function getBackportToDirectoriesInput({
   // Backport onto which branch?
   const targetBranchSpan = apm.startSpan('Get target branch');
   const targetBranch = (
-    await getTargetBranches({ ...options, multipleBranches: false }, commits)
+    await getTargetBranches({ ...options, multipleBranches: false }, [])
   )[0];
   targetBranchSpan?.end();
   logger.info('Target branch', targetBranch);

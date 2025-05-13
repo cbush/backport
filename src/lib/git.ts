@@ -388,11 +388,17 @@ export const patchApply: CherrypicklikeFunction = async ({
     // Generate patch
     const { stdout: patch } = await spawnPromise(
       'git',
-      [`diff`, `${sha}^`, sha],
+      [
+        `diff`,
+        `${sha}^`,
+        sha,
+        '--',
+        path.join(cwd, target.sourceDirectory ?? ''), // include changes from source directory only
+      ],
       cwd,
     );
 
-    consoleLog(`patch: ${patch}`);
+    logger.info(`Patch: ${patch}`);
 
     if (patch.trim() === '' || !target.directories || !target.sourceDirectory) {
       throw new BackportError('Patch is empty. Nothing to apply.');
