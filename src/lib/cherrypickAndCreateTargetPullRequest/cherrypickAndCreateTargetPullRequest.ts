@@ -47,8 +47,6 @@ export async function cherrypickAndCreateTargetPullRequest({
     commits,
   });
 
-  // TODO: backportBranch must start with a valid character
-
   const repoForkOwner = getRepoForkOwner(options);
   consoleLog(`\n${chalk.bold(`Backporting to ${JSON.stringify(target)}:`)}`);
 

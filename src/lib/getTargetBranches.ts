@@ -31,7 +31,10 @@ export async function getTargetBranches(
     return suggestedTargetBranches;
   }
 
-  const sourceBranch = getSourceBranchFromCommits(commits);
+  const sourceBranch =
+    commits.length === 0
+      ? options.sourceBranch
+      : getSourceBranchFromCommits(commits);
   const targetBranchChoices = getTargetBranchChoices({
     options,
     suggestedTargetBranches,
