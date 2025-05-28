@@ -1,8 +1,5 @@
 import { isEmpty, isString } from 'lodash';
-import {
-  TargetBranchChoice,
-  TargetBranchChoiceOrString,
-} from '../options/ConfigOptions';
+import { TargetBranchChoiceOrString } from '../options/ConfigOptions';
 import { ValidConfigOptions } from '../options/options';
 import { BackportError } from './BackportError';
 import { getSourceBranchFromCommits } from './getSourceBranchFromCommits';
