@@ -48,7 +48,9 @@ export async function cherrypickAndCreateTargetPullRequest({
   });
 
   const repoForkOwner = getRepoForkOwner(options);
-  consoleLog(`\n${chalk.bold(`Backporting to ${JSON.stringify(target)}:`)}`);
+  consoleLog(
+    `\n${chalk.bold(`Backporting to ${target.branch}${target.directories ? ` directories ${JSON.stringify(target.directories)}` : ''}:`)}`,
+  );
 
   await validateTargetBranch({ ...options, branchName: targetBranch });
   await createBackportBranch({

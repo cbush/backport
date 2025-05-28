@@ -51,7 +51,7 @@ export const defaultConfigOptions = {
   maxNumber: 10,
   multipleBranches: true,
   multipleCommits: false,
-  multipleDirectories: true,
+  multipleDirectories: false,
   noVerify: true,
   publishStatusCommentOnAbort: false,
   publishStatusCommentOnFailure: false,

@@ -143,7 +143,7 @@ describe('cherrypickAndCreateTargetPullRequest', () => {
       res = await cherrypickAndCreateTargetPullRequest({
         options,
         commits,
-        targetBranch: '6.x',
+        target: { branch: '6.x' },
       });
 
       scope.done();
@@ -265,7 +265,7 @@ describe('cherrypickAndCreateTargetPullRequest', () => {
       res = await cherrypickAndCreateTargetPullRequest({
         options,
         commits,
-        targetBranch: '6.x',
+        target: { branch: '6.x' },
       });
       scope.done();
       nock.cleanAll();
@@ -349,7 +349,9 @@ describe('cherrypickAndCreateTargetPullRequest', () => {
             targetPullRequestStates: [],
           },
         ],
-        targetBranch: '6.x',
+        target: {
+          branch: '6.x',
+        },
       });
 
       scope.done();

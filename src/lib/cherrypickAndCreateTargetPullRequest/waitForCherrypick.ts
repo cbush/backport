@@ -40,7 +40,7 @@ export async function waitForCherrypick(
     target,
     cherrypickSpinner,
     cherrypick:
-      options.backportTargetMode === 'branch' ? cherrypick : patchApply,
+      options.backportTargetMode === 'directory' ? patchApply : cherrypick,
   });
 
   // At this point conflict are resolved (or committed if `commitConflicts: true`) and files are staged
