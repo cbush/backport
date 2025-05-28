@@ -105,20 +105,24 @@ describe('getCommentBody', () => {
       backportResponse: {
         status: 'success',
         results: [
-          {
+          { 
             status: 'success',
-            targetBranch: '7.x',
             pullRequestNumber: 55,
             pullRequestUrl: 'url-to-pr',
+            target: {
+              branch: "7.x",
+            },
           },
           {
             status: 'success',
-            targetBranch: '7.1',
             pullRequestNumber: 66,
             pullRequestUrl: 'url-to-pr',
+            target: {
+              branch: "7.1",
+            },
           },
         ],
-      } as BackportResponse,
+      } as BackportSuccessResponse,
     });
 
     it('posts a comment when `publishStatusCommentOnSuccess = true`', () => {
@@ -161,13 +165,17 @@ describe('getCommentBody', () => {
         results: [
           {
             status: 'unhandled-error',
-            targetBranch: '7.x',
             error: new Error('My boom error!'),
+            target: {
+              branch: "7.x",
+            },
           },
           {
             status: 'unhandled-error',
-            targetBranch: '7.1',
             error: new Error('My boom error!'),
+            target: {
+              branch: "7.1"
+            },
           },
         ],
       } as BackportSuccessResponse,
@@ -217,15 +225,19 @@ describe('getCommentBody', () => {
         results: [
           {
             status: 'success',
-            targetBranch: '7.x',
             pullRequestNumber: 55,
             pullRequestUrl: 'url-to-pr-55',
+            target: {
+              branch: "7.x",
+            },
           },
 
           {
             status: 'failure',
-            targetBranch: '7.1',
             error: new Error('My boom error!'),
+            target: {
+              branch: "7.1",
+            },
           },
         ],
       } as BackportResponse,
@@ -277,14 +289,18 @@ describe('getCommentBody', () => {
         results: [
           {
             status: 'success',
-            targetBranch: '7.x',
             pullRequestNumber: 55,
             pullRequestUrl: 'url-to-pr-55',
+            target: {
+              branch: "7.x",
+            },
           },
 
           {
             status: 'failure',
-            targetBranch: '7.1',
+            target: {
+              branch: "7.1",
+            },
             error: new BackportError({
               code: 'merge-conflict-exception',
               conflictingFiles: ['readme.md'],
@@ -379,7 +395,9 @@ describe('getCommentBody', () => {
 
           {
             status: 'failure',
-            targetBranch: '7.2',
+            target: {
+              branch: '7.2',
+            },
             error: new BackportError({
               code: 'merge-conflict-exception',
               conflictingFiles: ['my-file.txt'],
@@ -480,14 +498,15 @@ Please refer to the [Backport tool documentation](https://github.com/sorenlouv/b
       pullNumber: 55,
       backportResponse: {
         status: 'success',
-        commits: [],
         results: [
           {
-            targetBranch: 'staging',
             status: 'handled-error',
             error: new BackportError({
               code: 'abort-conflict-resolution-exception',
             }),
+            target: {
+              branch: "staging",
+            },
           },
         ],
       } as BackportResponse,
@@ -548,14 +567,15 @@ Please refer to the [Backport tool documentation](https://github.com/sorenlouv/b
       pullNumber: 55,
       backportResponse: {
         status: 'success',
-        commits: [],
         results: [
           {
-            targetBranch: 'main',
             status: 'handled-error',
             error: new BackportError(
               'The branch "main" is invalid or doesn\'t exist',
             ),
+            target: {
+              branch: "main",
+            },
           },
         ],
       } as BackportResponse,
@@ -603,13 +623,14 @@ Please refer to the [Backport tool documentation](https://github.com/sorenlouv/b
       } as ValidConfigOptions,
       pullNumber: 55,
       backportResponse: {
-        status: 'success',
-        commits: [],
+        status: 'failure',
         results: [
           {
-            targetBranch: '--foo',
+            target: {
+              branch: "foo",
+            },
             status: 'unhandled-error',
-            error: new BackportError('The branch "--foo" does not exist'),
+            error: new BackportError('The branch "--foo" does not exist'),    
           },
         ],
       } as BackportResponse,
@@ -662,9 +683,11 @@ Please refer to the [Backport tool documentation](https://github.com/sorenlouv/b
         results: [
           {
             status: 'success',
-            targetBranch: '7.x',
             pullRequestNumber: 55,
             pullRequestUrl: 'url-to-pr',
+            target: {
+              branch: "7.x",
+            },
           },
         ],
       } as BackportResponse,

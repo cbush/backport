@@ -254,11 +254,11 @@ describe('getTargetBranchChoices', () => {
 
   it('should not check any branches if no labels match', () => {
     const targetBranchesFromLabels = [] as string[];
-    const branches = getTargetBranchChoices(
+    const branches = getTargetBranchChoices({
       options,
-      targetBranchesFromLabels,
+      suggestedTargetBranches: targetBranchesFromLabels,
       sourceBranch,
-    );
+    });
 
     expect(branches).toEqual([
       { checked: false, name: '7.x' },
@@ -270,11 +270,11 @@ describe('getTargetBranchChoices', () => {
   it('should pre-select branches based on labels', () => {
     const targetBranchesFromLabels = ['7.7'];
 
-    const branches = getTargetBranchChoices(
+    const branches = getTargetBranchChoices({
       options,
-      targetBranchesFromLabels,
+      suggestedTargetBranches: targetBranchesFromLabels,
       sourceBranch,
-    );
+    });
 
     expect(branches).toEqual([
       { checked: false, name: '7.x' },

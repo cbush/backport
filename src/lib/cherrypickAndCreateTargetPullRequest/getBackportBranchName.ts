@@ -2,19 +2,6 @@ import Handlebars from 'handlebars';
 import { Commit } from '../../entrypoint.api';
 import { ValidConfigOptions } from '../../options/options';
 import { getShortSha } from '../github/commitFormatters';
-import { logger } from '../logger';
-
-function isValidGitBranchName(name: string): boolean {
-  return (
-    name.length > 0 &&
-    !name.startsWith('-') &&
-    !name.endsWith('/') &&
-    !name.includes('..') &&
-    !name.includes('@{') &&
-    !name.includes('\\') &&
-    !/[~^:\s?*[\]]/.test(name)
-  );
-}
 
 /*
  * Returns the name of the backport branch without remote name
@@ -42,35 +29,16 @@ export function getBackportBranchName({
     .join('_')
     .slice(0, 200);
 
+  const sourcePullRequest = commits[0].sourcePullRequest; // assume that all commits are from the same PR
   const defaultBackportBranchName = 'backport/{{targetBranch}}/{{refValues}}';
 
-  const backportBranchNameTemplate =
+  const backportBranchName =
     options.backportBranchName ?? defaultBackportBranchName;
 
-  const safeSourcePullRequest = {
-    ...commits[0].sourcePullRequest,
-    title: commits[0].sourcePullRequest?.title ?? 'untitled',
-  };
-
-  // Render the template with guaranteed values
-  const interpolatedName = Handlebars.compile(backportBranchNameTemplate)({
-    sourcePullRequest: safeSourcePullRequest,
+  const template = Handlebars.compile(backportBranchName);
+  return template({
+    sourcePullRequest,
     targetBranch,
     refValues,
   });
-
-  // Validate and sanitize
-  if (!isValidGitBranchName(interpolatedName)) {
-    logger.warn(
-      `Invalid branch name "${interpolatedName}". Falling back to safe default.`,
-    );
-
-    const fallback = `backport/${safeSourcePullRequest.title}-${targetBranch}`
-      .replace(/[^\w.-]+/g, '-') // sanitize
-      .toLowerCase();
-
-    return fallback.slice(0, 200);
-  }
-
-  return interpolatedName.slice(0, 200);
 }

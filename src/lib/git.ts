@@ -1,3 +1,4 @@
+import assert from 'assert';
 import path, { resolve as pathResolve } from 'path';
 import { uniq, isEmpty } from 'lodash';
 import { ora } from '../lib/ora';
@@ -306,7 +307,7 @@ export async function cherrypick({
   sha: string;
   mergedTargetPullRequest?: TargetPullRequest;
   commitAuthor: CommitAuthor;
-  target: Target;
+  target?: Target;
 }): Promise<{
   conflictingFiles: { absolute: string; relative: string }[];
   unstagedFiles: string[];
@@ -382,6 +383,7 @@ export const patchApply: CherrypicklikeFunction = async ({
   sha,
   target,
 }) => {
+  assert(target !== undefined, 'patchApply requires target argument!');
   try {
     const cwd = getRepoPath(options);
 

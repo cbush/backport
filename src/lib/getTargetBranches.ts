@@ -51,6 +51,7 @@ export async function getTargetBranches(
 export function getTargetBranchChoices({
   options,
   suggestedTargetBranches,
+  sourceBranch,
 }: {
   options: ValidConfigOptions;
   suggestedTargetBranches: string[];
@@ -58,9 +59,9 @@ export function getTargetBranchChoices({
 }) {
   const targetBranchesChoices = getTargetBranchChoicesAsObject(
     options.targetBranchChoices,
-  );
-  // exclude sourceBranch from targetBranchChoices
-  //.filter((choice) => choice.name !== sourceBranch);
+  )
+    // exclude sourceBranch from targetBranchChoices
+    .filter((choice) => choice.name !== sourceBranch);
 
   if (isEmpty(targetBranchesChoices)) {
     throw new BackportError('Missing target branch choices');
@@ -81,7 +82,7 @@ export function getTargetBranchChoices({
 // It must be transformed so it is always treated as an object troughout the application
 function getTargetBranchChoicesAsObject(
   targetBranchChoices?: TargetBranchChoiceOrString[],
-): TargetBranchChoice[] {
+) {
   if (!targetBranchChoices) {
     return [];
   }
