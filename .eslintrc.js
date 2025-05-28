@@ -12,7 +12,7 @@ module.exports = {
   parserOptions: {
     // This setting is required if you want to use rules which require type information
     // https://github.com/typescript-eslint/typescript-eslint/tree/master/packages/parser#parseroptionsproject
-    project: ['./tsconfig.eslint.json'],
+    project: ['./tsconfig.json'],
   },
   extends: [
     'plugin:@typescript-eslint/recommended', // Uses the recommended rules from the @typescript-eslint/eslint-plugin

@@ -84,7 +84,9 @@ describe('entrypoint.module', () => {
               'https://github.com/backport-org/integration-test/pull/',
             ),
             status: 'success',
-            targetBranch: '7.x',
+            target: {
+              branch: '7.x',
+            },
           },
         ],
         status: 'success',
@@ -211,7 +213,9 @@ describe('entrypoint.module', () => {
               'https://github.com/backport-org/integration-test/pull/',
             ),
             status: 'success',
-            targetBranch: '7.x',
+            target: {
+              branch: '7.x',
+            },
           },
         ],
         status: 'success',
@@ -335,7 +339,9 @@ describe('entrypoint.module', () => {
               'https://github.com/backport-org/integration-test/pull/',
             ),
             status: 'success',
-            targetBranch: '7.x',
+            target: {
+              branch: '7.x',
+            },
           },
         ],
         status: 'success',
