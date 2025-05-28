@@ -25,7 +25,7 @@ export function getRemoteUrl(
   return `https://x-access-token:${accessToken}@${gitHostname}/${repoOwner}/${repoName}.git`;
 }
 
-export function sanitizeDirectoryPath(path: string): string {
+export function stripLeadingAndTrailingSlashes(path: string): string {
   return path.replace(/^\/+|\/+$/g, '');
 }
 
@@ -401,8 +401,6 @@ export const patchApply: CherrypicklikeFunction = async ({
       cwd,
     );
 
-    consoleLog(`\nPatch: ${patch}`);
-
     if (patch.trim() === '') {
       throw new BackportError('Patch is empty. Nothing to apply.');
     }
@@ -411,41 +409,40 @@ export const patchApply: CherrypicklikeFunction = async ({
     const results = await sequentially(
       target.directories!,
       async (targetDirectory) => {
-        // Remove leading and trailing slashes
-        const sanitizedTargetDirectory = sanitizeDirectoryPath(targetDirectory);
+        const sanitizedTargetDirectory =
+          stripLeadingAndTrailingSlashes(targetDirectory);
+
+        const sourceDirectory = stripLeadingAndTrailingSlashes(
+          target.sourceDirectory!,
+        );
 
         // Rewrite patch paths: replace /<sourceDirectory>/ with /<targetDirectory>/ in content paths
-        const versionedPatch = patch
+        const modifiedPatch = patch
           .replaceAll(
             new RegExp(
-              `^diff --git a/${target.sourceDirectory}/(.*) b/${target.sourceDirectory}/(.*)`,
+              `^diff --git a/${sourceDirectory}/?(.*) b/${sourceDirectory}/?(.*)`,
               'gm',
             ),
             (_, fileA, fileB) =>
               `diff --git a/${sanitizedTargetDirectory}/${fileA} b/${sanitizedTargetDirectory}/${fileB}`,
           )
           .replaceAll(
-            new RegExp(
-              `^rename (from|to) ${target.sourceDirectory}/(.*)$`,
-              'gm',
-            ),
+            new RegExp(`^rename (from|to) ${sourceDirectory}/?(.*)$`, 'gm'),
             (_, fromTo, filename) =>
               `rename ${fromTo} ${sanitizedTargetDirectory}/${filename}`,
           )
           .replaceAll(
-            new RegExp(
-              `^([+-]{3} [ab])(/)${escapeRegExp(target.sourceDirectory)}/`,
-              'gm',
-            ),
-            (_, start, slash) => `${start}${slash}${sanitizedTargetDirectory}/`,
+            new RegExp(`^([+-]{3} [ab])/${sourceDirectory}/?(.*)$`, 'gm'),
+            (_, start, file) => `${start}/${sanitizedTargetDirectory}/${file}`,
           );
 
+        consoleLog(`\nPatch:\n${modifiedPatch}\n`);
+
         // Optional: Safety check — ensure replacement happened
-        if (!versionedPatch.includes(`/${targetDirectory}/`)) {
-          consoleLog(
-            `⚠️ Patch rewrite failed for ${targetDirectory}. Skipping.`,
+        if (!modifiedPatch.includes(`/${sanitizedTargetDirectory}/`)) {
+          throw new Error(
+            `⚠️ Patch rewrite failed. This is likely an issue with the backport tool.`,
           );
-          return false;
         }
 
         consoleLog(`Applying patch for ${targetDirectory}...`);
@@ -456,14 +453,14 @@ export const patchApply: CherrypicklikeFunction = async ({
             ['apply', '--3way', '-'],
             cwd,
             false,
-            versionedPatch,
+            modifiedPatch,
           );
           consoleLog(`✅ Patch applied to ${targetDirectory}`);
           return true;
         } catch (e) {
           if (!(e instanceof SpawnError)) throw e;
 
-          consoleLog(`❌ Error applying patch to ${targetDirectory}: ${e}`);
+          consoleLog(`\n❌ Error applying patch to ${targetDirectory}: ${e}`);
           const isApplyError =
             e.context.cmdArgs.includes('apply') && e.context.code > 0;
           if (isApplyError) {
