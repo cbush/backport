@@ -54,11 +54,16 @@ export function getTargetBranchChoices({
   suggestedTargetBranches: string[];
   sourceBranch: string;
 }) {
-  const targetBranchesChoices = getTargetBranchChoicesAsObject(
+  let targetBranchesChoices = getTargetBranchChoicesAsObject(
     options.targetBranchChoices,
-  )
-    // exclude sourceBranch from targetBranchChoices
-    .filter((choice) => choice.name !== sourceBranch);
+  );
+
+  if (options.backportTargetMode !== 'directory') {
+    // exclude sourceBranch from targetBranchChoices in non-directory mode
+    targetBranchesChoices = targetBranchesChoices.filter(
+      (choice) => choice.name !== sourceBranch,
+    );
+  }
 
   if (isEmpty(targetBranchesChoices)) {
     throw new BackportError('Missing target branch choices');
