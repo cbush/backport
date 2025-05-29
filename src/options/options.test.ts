@@ -228,7 +228,7 @@ describe('getOptions', () => {
       maxNumber: 10,
       multipleBranches: true,
       multipleCommits: false,
-      multipleDirectories: false,
+      multipleDirectories: true,
       noUnmergedBackportsHelp: false,
       noVerify: true,
       publishStatusCommentOnAbort: false,
