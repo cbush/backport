@@ -385,99 +385,18 @@ export const patchApply: CherrypicklikeFunction = async ({
 }) => {
   assert(target !== undefined, 'patchApply requires target argument!');
   try {
-    const cwd = getRepoPath(options);
-
-    const relevantSubpath = path.resolve(cwd, target.sourceDirectory ?? '');
-    consoleLog(`\nRelevant subpath: ${relevantSubpath}`);
-
-    // Generate patch
-    const { stdout: patch } = await spawnPromise(
-      'git',
-      [
-        `diff`,
-        `${sha}^`,
-        sha,
-        '--',
-        relevantSubpath, // include changes from source directory only
-      ],
-      cwd,
-    );
-
-    if (patch.trim() === '') {
-      throw new BackportError('Patch is empty. Nothing to apply.');
-    }
-
-    // Apply the patch once per target directory (version)
+    // Apply the patch once per target directory
     const results = await sequentially(
       target.directories!,
       async (targetDirectory) => {
-        const sanitizedTargetDirectory =
-          stripLeadingAndTrailingSlashes(targetDirectory);
-
-        const sourceDirectory = stripLeadingAndTrailingSlashes(
-          target.sourceDirectory!,
-        );
-
-        // Rewrite patch paths: replace /<sourceDirectory>/ with /<targetDirectory>/ in content paths
-        const modifiedPatch = patch
-          .replaceAll(
-            new RegExp(
-              `^diff --git a/${sourceDirectory}/?(.*) b/${sourceDirectory}/?(.*)`,
-              'gm',
-            ),
-            (_, fileA, fileB) =>
-              `diff --git a/${sanitizedTargetDirectory}/${fileA} b/${sanitizedTargetDirectory}/${fileB}`,
-          )
-          .replaceAll(
-            new RegExp(`^rename (from|to) ${sourceDirectory}/?(.*)$`, 'gm'),
-            (_, fromTo, filename) =>
-              `rename ${fromTo} ${sanitizedTargetDirectory}/${filename}`,
-          )
-          .replaceAll(
-            new RegExp(`^([+-]{3} [ab])/${sourceDirectory}/?(.*)$`, 'gm'),
-            (_, start, file) => `${start}/${sanitizedTargetDirectory}/${file}`,
-          );
-
-        consoleLog(`\nPatch:\n${modifiedPatch}\n`);
-
-        // Optional: Safety check — ensure replacement happened
-        if (!modifiedPatch.includes(`/${sanitizedTargetDirectory}/`)) {
-          throw new Error(
-            `⚠️ Patch rewrite failed. This is likely an issue with the backport tool.`,
-          );
-        }
-
-        consoleLog(`Applying patch for ${targetDirectory}...`);
-
-        try {
-          await spawnPromise(
-            'git',
-            ['apply', '--3way', '-'],
-            cwd,
-            false,
-            modifiedPatch,
-          );
-          consoleLog(`✅ Patch applied to ${targetDirectory}`);
-          return true;
-        } catch (e) {
-          if (!(e instanceof SpawnError)) throw e;
-
-          consoleLog(`\n❌ Error applying patch to ${targetDirectory}: ${e}`);
-          const isApplyError =
-            e.context.cmdArgs.includes('apply') && e.context.code > 0;
-          if (isApplyError) {
-            return false;
-          }
-
-          throw e;
-        }
+        return await patchDirectory({ sha, target, options, targetDirectory });
       },
     );
 
     // Return conflict info if any failed
     const anyFailures = results.includes(false);
     if (anyFailures) {
-      consoleLog('⚠️ Conflicts detected in one or more directories.');
+      consoleLog('\n⚠️ Conflicts detected in one or more directories.');
       const [conflictingFiles, unstagedFiles] = await Promise.all([
         getConflictingFiles(options),
         getUnstagedFiles(options),
@@ -508,6 +427,125 @@ export const patchApply: CherrypicklikeFunction = async ({
     throw e;
   }
 };
+
+export async function patchDirectory({
+  target,
+  targetDirectory,
+  options,
+  sha,
+  excludeFiles,
+}: {
+  target: Target;
+  targetDirectory: string;
+  options: ValidConfigOptions;
+  sha: string;
+  excludeFiles?: string[];
+}): Promise<boolean> {
+  const cwd = getRepoPath(options);
+
+  const relevantSubpath = path.resolve(cwd, target.sourceDirectory ?? '');
+
+  const exclusions = (excludeFiles ?? []).map(
+    (file) => `:!${target.sourceDirectory ?? ''}${file}`,
+  );
+
+  if (exclusions.length !== 0) {
+    logger.info(`Patch exclusions: ${JSON.stringify(exclusions)}`);
+  }
+
+  // Generate patch
+  const { stdout: patch } = await spawnPromise(
+    'git',
+    [
+      `diff`,
+      `${sha}^`,
+      sha,
+      '--',
+      relevantSubpath, // include changes from source directory only
+      ...exclusions, // exclude files not found in target directory
+    ],
+    cwd,
+  );
+
+  if (patch.trim() === '') {
+    consoleLog(
+      `\n⚠️  Patch for target directory ${targetDirectory} is empty. Nothing to apply.`,
+    );
+    return true;
+  }
+
+  const sanitizedTargetDirectory =
+    stripLeadingAndTrailingSlashes(targetDirectory);
+
+  const sourceDirectory = stripLeadingAndTrailingSlashes(
+    target.sourceDirectory!,
+  );
+
+  // Rewrite patch paths: replace /<sourceDirectory>/ with /<targetDirectory>/ in content paths
+  const modifiedPatch = patch
+    .replaceAll(
+      new RegExp(
+        `^diff --git a/${sourceDirectory}/?(.*) b/${sourceDirectory}/?(.*)`,
+        'gm',
+      ),
+      (_, fileA, fileB) =>
+        `diff --git a/${sanitizedTargetDirectory}/${fileA} b/${sanitizedTargetDirectory}/${fileB}`,
+    )
+    .replaceAll(
+      new RegExp(`^rename (from|to) ${sourceDirectory}/?(.*)$`, 'gm'),
+      (_, fromTo, filename) =>
+        `rename ${fromTo} ${sanitizedTargetDirectory}/${filename}`,
+    )
+    .replaceAll(
+      new RegExp(`^([+-]{3} [ab])/${sourceDirectory}/?(.*)$`, 'gm'),
+      (_, start, file) => `${start}/${sanitizedTargetDirectory}/${file}`,
+    );
+
+  try {
+    await spawnPromise(
+      'git',
+      ['apply', '--3way', '--whitespace', 'nowarn', '-'],
+      cwd,
+      false,
+      modifiedPatch,
+    );
+    logger.info(`Patch applied to ${targetDirectory}`);
+    return true;
+  } catch (e) {
+    if (!(e instanceof SpawnError)) throw e;
+
+    const matches = /error: (.*): does not exist in index/gm.exec(e.message);
+    if (matches !== null) {
+      // File(s) not found in target directory. Try again with this exclusion
+      const files = matches
+        .slice(1)
+        .map((match) => match.replace(new RegExp(`^${targetDirectory}`), ''));
+
+      consoleLog(
+        `\n⚠️  Files exist in source directory but not target directory:\n- ...${files.join('\n- ...')}\n\nRetrying without them. If you want these files in the target directory, copy them manually in a separate commit.`,
+      );
+      return patchDirectory({
+        target,
+        targetDirectory,
+        options,
+        sha,
+        excludeFiles: [...(excludeFiles ?? []), ...files],
+      });
+    }
+
+    const { stdout: unmergedFiles } = await spawnPromise(
+      'git',
+      ['ls-files', '--unmerged'],
+      cwd,
+      false,
+    );
+    if (unmergedFiles !== '') {
+      return false;
+    }
+    consoleLog(`\n❌ Error applying patch to ${targetDirectory}: ${e.message}`);
+    throw e;
+  }
+}
 
 export async function gitAddAll({ options }: { options: ValidConfigOptions }) {
   const cwd = getRepoPath(options);

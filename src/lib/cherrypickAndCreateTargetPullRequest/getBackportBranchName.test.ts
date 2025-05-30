@@ -73,7 +73,7 @@ describe('getBackportBranchName', () => {
         targetBranch: '7.x',
         commits,
       });
-      expect(name).toBe('bp/pr-My PR title');
+      expect(name).toBe('bp/pr-My_PR_title');
     });
   });
 });

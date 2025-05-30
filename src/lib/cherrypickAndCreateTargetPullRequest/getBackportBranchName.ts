@@ -40,5 +40,5 @@ export function getBackportBranchName({
     sourcePullRequest,
     targetBranch,
     refValues,
-  });
+  }).replaceAll(/[^A-z0-9-_/.]/g, '_');
 }
