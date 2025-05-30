@@ -81,11 +81,10 @@ async function cherrypickAndHandleConflicts({
   );
 
   let conflictingFiles: ConflictingFiles;
-  let unstagedFiles: string[];
   let needsResolving: boolean;
 
   try {
-    ({ conflictingFiles, unstagedFiles, needsResolving } = await cherrypick({
+    ({ conflictingFiles, needsResolving } = await cherrypick({
       options,
       sha: commit.sourceCommit.sha,
       mergedTargetPullRequest,
@@ -168,7 +167,9 @@ async function cherrypickAndHandleConflicts({
   consoleLog(
     chalk.bold('\nThe commit could not be backported due to conflicts\n'),
   );
-  consoleLog(`Please fix the conflicts in ${repoPath}`);
+  consoleLog(
+    `Please fix the conflicts in ${repoPath}:\n- ${conflictingFiles.map(({ relative }) => relative).join('\n- ')}\n`,
+  );
 
   if (commitsWithoutBackports.length > 0) {
     consoleLog(
@@ -185,21 +186,23 @@ async function cherrypickAndHandleConflicts({
   /*
    * Commit could not be cleanly cherrypicked: Initiating conflict resolution
    */
-
   if (options.editor) {
     const [editor, ...editorOpts] = options.editor
       .split(' ')
       .map((segment) => segment.trim())
       .filter((segment) => segment !== '');
-    await spawnPromise(editor, [...editorOpts, repoPath], options.cwd, true);
+    await spawnPromise(
+      editor,
+      [...editorOpts, ...conflictingFiles.map(({ absolute }) => absolute)],
+      options.cwd,
+      true,
+    );
   }
 
   // list files with conflict markers + unstaged files and require user to resolve them
   await listConflictingAndUnstagedFiles({
     retries: 0,
     options,
-    conflictingFiles: conflictingFiles.map((f) => f.absolute),
-    unstagedFiles,
   });
 
   return { hasCommitsWithConflicts: false };
@@ -208,14 +211,17 @@ async function cherrypickAndHandleConflicts({
 async function listConflictingAndUnstagedFiles({
   retries,
   options,
-  conflictingFiles,
-  unstagedFiles,
 }: {
   retries: number;
   options: ValidConfigOptions;
-  conflictingFiles: string[];
-  unstagedFiles: string[];
 }): Promise<void> {
+  const [conflictingFiles, unstagedFiles] = await Promise.all([
+    getConflictingFiles(options).then((files) =>
+      files.map(({ absolute }) => absolute),
+    ),
+    getUnstagedFiles(options),
+  ]);
+
   const hasUnstagedFiles = !isEmpty(
     difference(unstagedFiles, conflictingFiles),
   );
@@ -246,7 +252,7 @@ async function listConflictingAndUnstagedFiles({
     : '';
 
   const didConfirm = await confirmPrompt(
-    `${header}\n\n${conflictSection}\n${unstagedSection}\n\nPress ENTER when the conflicts are resolved and files are staged`,
+    `${header}\n\n${conflictSection}\n${unstagedSection}\n\n${!hasConflictingFiles && hasUnstagedFiles ? 'Conflicts resolved - press ENTER to stage files' : 'Press ENTER when the conflicts are resolved'}`,
   );
 
   if (!didConfirm) {
@@ -254,19 +260,15 @@ async function listConflictingAndUnstagedFiles({
   }
 
   const MAX_RETRIES = 100;
-  if (retries++ > MAX_RETRIES) {
+  if (!hasConflictingFiles && hasUnstagedFiles) {
+    const repoPath = getRepoPath(options);
+    await spawnPromise('git', ['add', '-u'], repoPath, false);
+  } else if (retries++ > MAX_RETRIES) {
     throw new Error(`Maximum number of retries (${MAX_RETRIES}) exceeded`);
   }
-
-  const [_conflictingFiles, _unstagedFiles] = await Promise.all([
-    getConflictingFiles(options),
-    getUnstagedFiles(options),
-  ]);
 
   await listConflictingAndUnstagedFiles({
     retries,
     options,
-    conflictingFiles: _conflictingFiles.map((file) => file.absolute),
-    unstagedFiles: _unstagedFiles,
   });
 }
