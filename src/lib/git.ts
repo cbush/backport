@@ -514,10 +514,12 @@ export async function patchDirectory({
   } catch (e) {
     if (!(e instanceof SpawnError)) throw e;
 
-    const matches = /error: (.*): does not exist in index/gm.exec(e.message);
-    if (matches !== null) {
+    const fileNotFoundMatches = /error: (.*): does not exist in index/gm.exec(
+      e.message,
+    );
+    if (fileNotFoundMatches !== null) {
       // File(s) not found in target directory. Try again with this exclusion
-      const files = matches
+      const files = fileNotFoundMatches
         .slice(1)
         .map((match) => match.replace(new RegExp(`^${targetDirectory}`), ''));
 
@@ -531,6 +533,21 @@ export async function patchDirectory({
         sha,
         excludeFiles: [...(excludeFiles ?? []), ...files],
       });
+    }
+
+    const patchDoesNotApplyMatches = /error: (.*): patch does not apply/gm.exec(
+      e.message,
+    );
+    if (patchDoesNotApplyMatches !== null) {
+      // Patch does not apply to file
+      const files = patchDoesNotApplyMatches
+        .slice(1)
+        .map((match) => match.replace(new RegExp(`^${targetDirectory}`), ''));
+
+      consoleLog(
+        `\n❌ Patch does not apply to file(s):\n- ...${files.join('\n- ...')}\n`,
+      );
+      throw e;
     }
 
     const { stdout: unmergedFiles } = await spawnPromise(
