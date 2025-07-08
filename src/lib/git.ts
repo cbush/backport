@@ -396,7 +396,7 @@ export const patchApply: CherrypicklikeFunction = async ({
     // Return conflict info if any failed
     const anyFailures = results.includes(false);
     if (anyFailures) {
-      consoleLog('\n⚠️ Conflicts detected in one or more directories.');
+      consoleLog('\n⚠️  Conflicts detected in one or more directories.');
       const [conflictingFiles, unstagedFiles] = await Promise.all([
         getConflictingFiles(options),
         getUnstagedFiles(options),
@@ -458,8 +458,7 @@ export async function patchDirectory({
     'git',
     [
       `diff`,
-      `${sha}^`,
-      sha,
+      `${sha}^..${sha}`,
       '--',
       relevantSubpath, // include changes from source directory only
       ...exclusions, // exclude files not found in target directory
@@ -538,16 +537,55 @@ export async function patchDirectory({
     const patchDoesNotApplyMatches = /error: (.*): patch does not apply/gm.exec(
       e.message,
     );
-    if (patchDoesNotApplyMatches !== null) {
-      // Patch does not apply to file
-      const files = patchDoesNotApplyMatches
-        .slice(1)
-        .map((match) => match.replace(new RegExp(`^${targetDirectory}`), ''));
 
-      consoleLog(
-        `\n❌ Patch does not apply to file(s):\n- ...${files.join('\n- ...')}\n`,
+    if (patchDoesNotApplyMatches !== null) {
+      // Sort into delete case and other cases
+      const files = patchDoesNotApplyMatches.slice(1);
+      const [deleteCaseFiles, otherFiles] = files.reduce(
+        (acc, file) => {
+          const isDeleteCase = new RegExp(
+            `^diff --git a/${file} b/${file}\ndeleted file mode`,
+            'gm',
+          ).test(modifiedPatch);
+
+          return isDeleteCase
+            ? [[...acc[0], file], acc[1]]
+            : [acc[0], [...acc[1], file]];
+        },
+        [[], []] as [string[], string[]],
       );
-      throw e;
+
+      if (deleteCaseFiles.length > 0) {
+        // Delete case - manually git rm. This happens when the file in the
+        // source directory is different from the file in the target directory
+        // at the time of deletion. Git-apply can't match the patch to the file.
+        consoleLog(
+          `\n⚠️  Deletion patch does not apply to file(s):\n- ${deleteCaseFiles.join('\n- ')}\n\nFalling back to direct 'git rm'.\n`,
+        );
+        await spawnPromise('git', ['rm', ...deleteCaseFiles], cwd, false);
+      }
+
+      // In other cases, there's nothing we can do short of reporting. Don't
+      // fail the entire backport process.
+      otherFiles.forEach((file) => {
+        consoleLog(
+          `\n⚠️  Patch does not apply to file: ${file}. Please backport these changes manually.\n`,
+        );
+      });
+
+      // Rerun patchDirectory with files excluded
+      return patchDirectory({
+        target,
+        targetDirectory,
+        options,
+        sha,
+        excludeFiles: [
+          ...(excludeFiles ?? []),
+          ...files.map((match) =>
+            match.replace(new RegExp(`^${targetDirectory}`), ''),
+          ),
+        ],
+      });
     }
 
     const { stdout: unmergedFiles } = await spawnPromise(
