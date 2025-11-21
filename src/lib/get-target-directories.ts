@@ -1,6 +1,6 @@
 import { isEmpty, isString } from 'lodash';
 import { ValidConfigOptions } from '../options/options';
-import { BackportError } from './BackportError';
+import { BackportError } from './backport-error';
 import { promptForDirectories } from './prompts';
 
 export async function getTargetDirectories({

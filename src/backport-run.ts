@@ -12,7 +12,7 @@ import { GithubV4Exception } from './lib/github/v4/client/graphql-client';
 import { consoleLog, initLogger } from './lib/logger';
 import { ora } from './lib/ora';
 import { registerHandlebarsHelpers } from './lib/register-handlebars-helpers';
-import type { Result } from './lib/run-sequentially';
+import type { Result, Target } from './lib/run-sequentially';
 import { runSequentially } from './lib/run-sequentially';
 import { setupRepo } from './lib/setup-repo';
 import type { Commit } from './lib/sourceCommit/parse-source-commit';
@@ -21,6 +21,9 @@ import { getRuntimeArguments, getOptionsFromCliArgs } from './options/cli-args';
 import type { ConfigFileOptions } from './options/config-options';
 import type { ValidConfigOptions } from './options/options';
 import { getActiveOptionsFormatted, getOptions } from './options/options';
+import { getSourceDirectory } from './lib/get-source-directory';
+import { Logger } from 'winston';
+import { getTargetDirectories } from './lib/get-target-directories';
 
 registerHandlebarsHelpers();
 

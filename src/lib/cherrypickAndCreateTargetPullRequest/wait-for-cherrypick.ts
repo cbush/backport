@@ -23,7 +23,7 @@ import { getFirstLine } from '../github/commit-formatters';
 import { consoleLog, logger } from '../logger';
 import { confirmPrompt } from '../prompts';
 import { Target } from '../run-sequentially';
-import { getCommitsWithoutBackports } from './getCommitsWithoutBackports';
+import { getCommitsWithoutBackports } from './get-commits-without-backports';
 
 export async function waitForCherrypick(
   options: ValidConfigOptions,

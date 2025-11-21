@@ -17,7 +17,7 @@ import { getPullRequestBody } from '../github/v3/getPullRequest/get-pull-request
 import { getTitle } from '../github/v3/getPullRequest/get-title';
 import { validateTargetBranch } from '../github/v4/validate-target-branch';
 import { consoleLog } from '../logger';
-import { Target } from '../runSequentially';
+import { Target } from '../run-sequentially';
 import { sequentially } from '../sequentially';
 import type { Commit } from '../sourceCommit/parse-source-commit';
 import { autoMergeNowOrLater } from './auto-merge-now-or-later';

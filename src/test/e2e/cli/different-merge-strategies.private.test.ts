@@ -295,5 +295,5 @@ async function listCommits(sandboxPath: string) {
     cwd: sandboxPath,
   });
 
-  return stdout.split('\n');
+  return (stdout as string).split('\n');
 }

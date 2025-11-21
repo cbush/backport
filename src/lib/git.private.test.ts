@@ -779,7 +779,7 @@ async function getCurrentSha(cwd: string) {
 
 async function getCurrentBranchName(cwd: string) {
   const { stdout } = await exec('git rev-parse --abbrev-ref HEAD', { cwd });
-  return stdout.trim();
+  return (stdout as string).trim();
 }
 
 async function getMostRecentCommitMessage(cwd: string) {

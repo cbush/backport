@@ -17,6 +17,7 @@ import { consoleLog, logger } from './logger';
 import { sequentially } from './sequentially';
 import type { TargetPullRequest } from './sourceCommit/get-pull-request-states';
 import type { Commit } from './sourceCommit/parse-source-commit';
+import { Target } from './run-sequentially';
 
 export function getRemoteUrl(
   { repoName, accessToken, gitHostname = 'github.com' }: ValidConfigOptions,

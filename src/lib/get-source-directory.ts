@@ -3,9 +3,9 @@ import { isEmpty, isString } from 'lodash';
 import {
   DirectoryChoice,
   DirectoryChoiceOrString,
-} from '../options/ConfigOptions';
+} from '../options/config-options';
 import { ValidConfigOptions } from '../options/options';
-import { BackportError } from './BackportError';
+import { BackportError } from './backport-error';
 import { promptForDirectories } from './prompts';
 
 export async function getSourceDirectory({
