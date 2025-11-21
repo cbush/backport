@@ -1,23 +1,19 @@
 import chalk from 'chalk';
 import { isEmpty } from 'lodash';
-import { BackportError } from '../lib/BackportError';
+import { BackportError } from '../lib/backport-error';
 import { getGlobalConfigPath } from '../lib/env';
-import {
-  getOptionsFromGithub,
-  OptionsFromGithub,
-} from '../lib/github/v4/getOptionsFromGithub/getOptionsFromGithub';
-import { getRepoOwnerAndNameFromGitRemotes } from '../lib/github/v4/getRepoOwnerAndNameFromGitRemotes';
+import { getRepoOwnerAndNameFromGitRemotes } from '../lib/github/v4/get-repo-owner-and-name-from-git-remotes';
+import { getOptionsFromGithub } from '../lib/github/v4/getOptionsFromGithub/get-options-from-github';
+import type { OptionsFromGithub } from '../lib/github/v4/getOptionsFromGithub/get-options-from-github';
 import { setAccessToken } from '../lib/logger';
-import {
+import type { OptionsFromCliArgs } from './cli-args';
+import type { OptionsFromConfigFiles } from './config/config';
+import { getOptionsFromConfigFiles } from './config/config';
+import type {
   ConfigFileOptions,
   TargetBranchChoiceOrString,
   DirectoryChoiceOrString,
-} from './ConfigOptions';
-import { OptionsFromCliArgs } from './cliArgs';
-import {
-  getOptionsFromConfigFiles,
-  OptionsFromConfigFiles,
-} from './config/config';
+} from './config-options';
 
 const PROJECT_CONFIG_DOCS_LINK =
   'https://github.com/sorenlouv/backport/blob/main/docs/config-file-options.md#project-config-backportrcjson';
@@ -38,7 +34,7 @@ export const defaultConfigOptions = {
   cherrypickRef: true,
   commitConflicts: false,
   commitPaths: [] as Array<string>,
-  copySourcePRLabels: false,
+  copySourcePRLabels: false as boolean | string | string[],
   copySourcePRReviewers: false,
   cwd: process.cwd(),
   dateSince: null,

@@ -1,9 +1,9 @@
 import fs from 'fs/promises';
-import { exec } from '../../childProcessHelper';
-import { getDevAccessToken } from '../../private/getDevAccessToken';
-import { removeLinesBreaksInConflictingFiles } from '../../replaceStringAndLinebreaks';
+import { exec } from '../../child-process-helper';
+import { getDevAccessToken } from '../../private/get-dev-access-token';
+import { removeLinesBreaksInConflictingFiles } from '../../replace-string-and-linebreaks';
 import { getSandboxPath, resetSandbox } from '../../sandbox';
-import { runBackportViaCli } from './runBackportViaCli';
+import { runBackportViaCli } from './run-backport-via-cli';
 const accessToken = getDevAccessToken();
 
 jest.setTimeout(40_000);
@@ -17,7 +17,7 @@ describe('different-merge-strategies', () => {
         `--accessToken=${accessToken}`,
         '-n=20',
       ],
-      { waitForString: 'Select commit', timeoutSeconds: 4 },
+      { waitForString: 'Select commit' },
     );
 
     expect(output).toMatchInlineSnapshot(`
@@ -63,7 +63,7 @@ describe('different-merge-strategies', () => {
           '--pr=9',
           '--dry-run',
         ],
-        { showOra: true, timeoutSeconds: 5 },
+        { showOra: true },
       );
       output = res.output;
     });
@@ -161,7 +161,6 @@ View pull request: this-is-a-dry-run"
         ],
         {
           keepAlive: true,
-          timeoutSeconds: 5,
           showOra: true,
           waitForString:
             'Press ENTER when the conflicts are resolved and files are staged',
@@ -178,7 +177,6 @@ View pull request: this-is-a-dry-run"
       await exec(`git add -A`, { cwd: sandboxPath });
       const res = await proc.keypress('enter', {
         showOra: true,
-        timeoutSeconds: 5,
       });
 
       output = removeLinesBreaksInConflictingFiles(res.output).replaceAll(
