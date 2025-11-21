@@ -2,22 +2,22 @@ import assert from 'assert';
 import path, { resolve as pathResolve } from 'path';
 import { uniq, isEmpty } from 'lodash';
 import { ora } from '../lib/ora';
-import { ValidConfigOptions } from '../options/options';
-import { filterNil } from '../utils/filterEmpty';
-import { BackportError } from './BackportError';
-import { CommitAuthor } from './author';
+import type { ValidConfigOptions } from '../options/options';
+import { filterNil } from '../utils/filter-empty';
+import type { CommitAuthor } from './author';
+import { BackportError } from './backport-error';
 import {
   spawnPromise,
   SpawnError,
   spawnStream,
 } from './child-process-promisified';
 import { getRepoPath } from './env';
-import { getShortSha } from './github/commitFormatters';
+import { getShortSha } from './github/commit-formatters';
 import { consoleLog, logger } from './logger';
-import { Target } from './runSequentially';
 import { sequentially } from './sequentially';
-import { TargetPullRequest } from './sourceCommit/getPullRequestStates';
-import { Commit } from './sourceCommit/parseSourceCommit';
+import type { TargetPullRequest } from './sourceCommit/get-pull-request-states';
+import type { Commit } from './sourceCommit/parse-source-commit';
+import { Target } from './run-sequentially';
 
 export function getRemoteUrl(
   { repoName, accessToken, gitHostname = 'github.com' }: ValidConfigOptions,
@@ -61,14 +61,14 @@ export async function cloneRepo(
     subprocess.stderr.on('data', (data: string) => {
       logger.verbose(data.toString());
       const [, objectReceiveProgress] =
-        data.toString().match(/^Receiving objects:\s+(\d+)%/) || [];
+        data.toString().match(/^Receiving objects:\s+(\d+)%/) ?? [];
 
       if (objectReceiveProgress) {
         progress.objectReceive = parseInt(objectReceiveProgress, 10);
       }
 
       const [, fileUpdateProgress] =
-        data.toString().match(/^Updating files:\s+(\d+)%/) || [];
+        data.toString().match(/^Updating files:\s+(\d+)%/) ?? [];
 
       if (fileUpdateProgress) {
         progress.objectReceive = 100;
@@ -107,6 +107,7 @@ export async function getLocalConfigFileCommitDate({ cwd }: { cwd: string }) {
       return timestamp;
     }
   } catch (e) {
+    logger.debug(`Could not retrieve commit date for .backportrc.json: ${e}`);
     return;
   }
 }
@@ -122,6 +123,7 @@ export async function isLocalConfigFileUntracked({ cwd }: { cwd: string }) {
 
     return !!stdout;
   } catch (e) {
+    logger.debug(`Could not check if .backportrc.json is untracked: ${e}`);
     return;
   }
 }
@@ -136,6 +138,7 @@ export async function isLocalConfigFileModified({ cwd }: { cwd: string }) {
 
     return !!stdout;
   } catch (e) {
+    logger.debug(`Could not check if .backportrc.json is modified: ${e}`);
     return false;
   }
 }
@@ -158,6 +161,7 @@ export async function getRepoInfoFromGitRemotes({ cwd }: { cwd: string }) {
       return { repoOwner, repoName };
     });
   } catch (e) {
+    logger.debug(`An error occurred while retrieving git remotes: ${e}`);
     return [];
   }
 }
@@ -234,7 +238,7 @@ export async function addRemote(
       cwd,
     );
   } catch (e) {
-    // note: swallowing error
+    logger.debug(`Could not add remote "${remoteName}": ${e}`);
     return;
   }
 }
@@ -363,13 +367,47 @@ export async function cherrypick({
       const isCherryPickError =
         e.context.cmdArgs.includes('cherry-pick') && e.context.code > 0;
       if (isCherryPickError) {
-        const [conflictingFiles, unstagedFiles] = await Promise.all([
-          getConflictingFiles(options),
-          getUnstagedFiles(options),
-        ]);
+        const [conflictingFiles, unstagedFiles, rerereConfig] =
+          await Promise.all([
+            getConflictingFiles(options),
+            getUnstagedFiles(options),
+            getRerereConfig(options),
+          ]);
 
-        if (!isEmpty(conflictingFiles) || !isEmpty(unstagedFiles))
+        const noConflicts = isEmpty(conflictingFiles);
+        const hasUnstaged = !isEmpty(unstagedFiles);
+
+        if (rerereConfig.enabled && noConflicts) {
+          const stagedFiles = await getStagedFiles(options);
+          const hasStaged = !isEmpty(stagedFiles);
+
+          if (rerereConfig.autoUpdate && hasStaged && !hasUnstaged) {
+            logger.info(
+              'Git rerere resolved conflicts and staged files automatically',
+            );
+            return {
+              conflictingFiles: [],
+              unstagedFiles: [],
+              needsResolving: false,
+            };
+          }
+
+          if (!rerereConfig.autoUpdate && hasUnstaged) {
+            logger.info(
+              'Git rerere resolved conflicts (files remain unmerged. Please stage manually)',
+            );
+            return {
+              conflictingFiles: [],
+              unstagedFiles,
+              needsResolving: true,
+            };
+          }
+        }
+
+        // Standard resolution path
+        if (!noConflicts || hasUnstaged) {
           return { conflictingFiles, unstagedFiles, needsResolving: true };
+        }
       }
     }
 
@@ -715,13 +753,15 @@ export async function getConflictingFiles(options: ValidConfigOptions) {
   }
 }
 
-// retrieve the list of files that could not be cleanly merged
-export async function getUnstagedFiles(options: ValidConfigOptions) {
+async function getFilesFromDiff(
+  options: ValidConfigOptions,
+  isStaged: boolean,
+) {
   const repoPath = getRepoPath(options);
   const cwd = repoPath;
   const res = await spawnPromise(
     'git',
-    ['--no-pager', 'diff', '--name-only'],
+    ['--no-pager', 'diff', '--name-only', ...(isStaged ? ['--cached'] : [])],
     cwd,
   );
   const files = res.stdout
@@ -730,6 +770,47 @@ export async function getUnstagedFiles(options: ValidConfigOptions) {
     .map((file) => pathResolve(repoPath, file));
 
   return uniq(files);
+}
+
+// retrieve the list of files that could not be cleanly merged
+export function getUnstagedFiles(options: ValidConfigOptions) {
+  return getFilesFromDiff(options, false);
+}
+
+// retrieve the list of files that are staged and ready to be committed
+export function getStagedFiles(options: ValidConfigOptions) {
+  return getFilesFromDiff(options, true);
+}
+
+// check if git rerere is enabled and what configuration it has
+export async function getRerereConfig(options: ValidConfigOptions): Promise<{
+  enabled: boolean;
+  autoUpdate: boolean;
+}> {
+  const cwd = getRepoPath(options);
+
+  const getConfigValue = async (key: string): Promise<boolean> => {
+    try {
+      const res = await spawnPromise(
+        'git',
+        ['config', '--type=bool', '--get', key],
+        cwd,
+      );
+      return JSON.parse(res.stdout.trim());
+    } catch {
+      return false;
+    }
+  };
+
+  const [enabled, autoUpdate] = await Promise.all([
+    getConfigValue('rerere.enabled'),
+    getConfigValue('rerere.autoUpdate'),
+  ]);
+
+  return {
+    enabled,
+    autoUpdate,
+  };
 }
 
 // How the commit flows:
@@ -779,7 +860,9 @@ export async function createBackportBranch({
     try {
       await spawnPromise('git', ['branch', '-D', tmpBranchName], cwd);
     } catch (e) {
-      // swallow error
+      logger.debug(
+        `Could not delete temporary branch "${tmpBranchName}": ${e}`,
+      );
     }
 
     // fetch commits for source branch
@@ -798,7 +881,7 @@ export async function createBackportBranch({
           /'(.+) is not a commit and a branch .+ cannot be created from it/,
         )?.[1];
 
-      const invalidBranch = invalidRemoteRef || invalidCommit;
+      const invalidBranch = invalidRemoteRef ?? invalidCommit;
 
       if (invalidBranch) {
         throw new BackportError(

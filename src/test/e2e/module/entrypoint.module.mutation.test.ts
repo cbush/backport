@@ -1,7 +1,8 @@
 import { Octokit } from '@octokit/rest';
-import { BackportResponse, backportRun } from '../../../entrypoint.api';
-import { getShortSha } from '../../../lib/github/commitFormatters';
-import { getDevAccessToken } from '../../private/getDevAccessToken';
+import type { BackportResponse } from '../../../entrypoint.api';
+import { backportRun } from '../../../entrypoint.api';
+import { getShortSha } from '../../../lib/github/commit-formatters';
+import { getDevAccessToken } from '../../private/get-dev-access-token';
 import { getSandboxPath, resetSandbox } from '../../sandbox';
 
 jest.unmock('find-up');
@@ -381,7 +382,6 @@ async function getBranchesOnGithub({
   repoOwner: string;
   repoName: string;
 }) {
-  // console.log(`fetch branches for ${repoOwner}`);
   const octokit = new Octokit({
     auth: accessToken,
   });
@@ -409,7 +409,6 @@ async function deleteBranchOnGithub({
     const octokit = new Octokit({
       auth: accessToken,
     });
-    // console.log({ accessToken });
 
     const opts = {
       owner: repoOwner,
@@ -419,14 +418,8 @@ async function deleteBranchOnGithub({
 
     const res = await octokit.git.deleteRef(opts);
 
-    // console.log(`Deleted ${repoOwner}:heads/${branchName}`);
-
     return res.data;
   } catch (e) {
-    // console.log(
-    //   `Could not delete ${repoOwner}:heads/${branchName} (${e.message})`
-    // );
-
     //@ts-expect-error
     if (e.message === 'Reference does not exist') {
       return;

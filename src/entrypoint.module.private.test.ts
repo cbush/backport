@@ -1,10 +1,11 @@
-import {
+import type {
   BackportFailureResponse,
   BackportSuccessResponse,
-} from './backportRun';
-import { backportRun, Commit, getCommits } from './entrypoint.api';
-import { getFirstLine } from './lib/github/commitFormatters';
-import { getDevAccessToken } from './test/private/getDevAccessToken';
+} from './backport-run';
+import type { Commit } from './entrypoint.api';
+import { backportRun, getCommits } from './entrypoint.api';
+import { getFirstLine } from './lib/github/commit-formatters';
+import { getDevAccessToken } from './test/private/get-dev-access-token';
 
 jest.setTimeout(10_000);
 
